@@ -1,0 +1,27 @@
+# === GRADLE (Артефакты сборки) ===
+.gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# === INTELLIJ IDEA (Настройки IDE) ===
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# === JAVA (Скомпилированные файлы) ===
+*.class
+*.jar
+*.war
+*.ear
+*.hprof
+
+# === СИСТЕМНЫЕ ФАЙЛЫ ===
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+# .gitignore
+.env

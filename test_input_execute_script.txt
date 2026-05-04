@@ -1,0 +1,3 @@
+execute_script script_add_inline_city.txt
+exit
+

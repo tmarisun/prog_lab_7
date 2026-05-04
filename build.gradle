@@ -1,0 +1,158 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '8.3.5'
+}
+
+group = 'org.example'
+version = '1.0-SNAPSHOT'
+tasks.withType(Javadoc) {
+    options.encoding = 'UTF-8'
+}
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+    test {
+        java {
+            srcDirs = ['test']
+        }
+    }
+}
+
+dependencies {
+    implementation 'org.json:json:20231013'
+
+    compileOnly 'org.projectlombok:lombok:1.18.34'
+    annotationProcessor 'org.projectlombok:lombok:1.18.34'
+
+    testCompileOnly 'org.projectlombok:lombok:1.18.32'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.32'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+    //implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2'
+    implementation 'io.github.cdimascio:dotenv-java:3.0.0'
+    implementation 'org.postgresql:postgresql:42.7.3'
+
+
+}
+
+application {
+    mainClass = 'org.example.Main'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.test {
+    useJUnitPlatform()
+}
+
+// Helios / cgroup: иначе «Could not reserve enough space for code cache (245760K)» у второго java (runClient/runServer).
+tasks.withType(JavaExec).configureEach { t ->
+    if (t.name in ['run', 'runServer', 'runClient', 'runHeliosServer', 'runHeliosClient']) {
+        t.minHeapSize = '32m'
+        t.maxHeapSize = '256m'
+        t.jvmArgs(
+                '-XX:ReservedCodeCacheSize=32m',
+                '-XX:InitialCodeCacheSize=8m',
+                '-XX:CompressedClassSpaceSize=48m',
+                '-XX:+UseSerialGC'
+        )
+    }
+}
+
+tasks.named('run') {
+    standardInput = System.in
+}
+
+tasks.register('runServer', JavaExec) {
+    group = 'application'
+    description = 'Run TCP collection server'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.example.server.ServerMain'
+    standardInput = System.in
+}
+
+/** Для helios: один процесс java без fork из JavaExec (см. scripts/run-server-jvm.sh). */
+tasks.register('writeServerClasspath') {
+    group = 'application'
+    description = 'Записать runtime classpath в build/server.classpath'
+    dependsOn classes
+    outputs.file(layout.buildDirectory.file('server.classpath'))
+    doLast {
+        def out = layout.buildDirectory.file('server.classpath').get().asFile
+        out.parentFile.mkdirs()
+        out.text = sourceSets.main.runtimeClasspath.asPath
+    }
+}
+
+/** Один JAR со всеми зависимостями — на helios: java -jar build/libs/lab-all.jar 5555 */
+shadowJar {
+    archiveFileName = 'lab-all.jar'
+    mergeServiceFiles()
+    manifest {
+        attributes 'Main-Class': 'org.example.server.ServerMain'
+    }
+}
+
+tasks.named('shadowJar') {
+    group = 'application'
+    description = 'Собрать lab-all.jar (scp на helios, запуск без Gradle)'
+}
+
+tasks.register('runClient', JavaExec) {
+    group = 'application'
+    description = 'Run TCP collection client'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.example.client.ClientMain'
+    // For cleaner interactive console: gradle -q --console=plain runClient --args="localhost 5555"
+    standardInput = System.in
+}
+
+/** Запуск на сервере helios: ./gradlew runHeliosServer (или scripts/helios-run-server.sh). */
+tasks.register('runHeliosServer', JavaExec) {
+    group = 'helios'
+    description = 'Сервер с дефолтами helios: PG_HOST=pg, PG_DATABASE=studs; PG_USER через export или -PpgUser. Порт: -PserverPort= / первый аргумент.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.example.server.ServerMain'
+    standardInput = System.in
+    def unixUser = System.getenv('USER') ?: System.getProperty('user.name') ?: ''
+    def listenPort = (findProperty('serverPort') ?: System.getenv('SERVER_PORT') ?: '5555').toString()
+    args listenPort
+    environment 'PG_HOST', findProperty('pgHost') ?: System.getenv('PG_HOST') ?: 'pg'
+    environment 'PG_PORT', findProperty('pgPort') ?: System.getenv('PG_PORT') ?: '5432'
+    environment 'PG_DATABASE', findProperty('pgDatabase') ?: System.getenv('PG_DATABASE') ?: 'studs'
+    environment 'PG_USER', findProperty('pgUser') ?: System.getenv('PG_USER') ?: unixUser
+    def pgPassword = findProperty('pgPassword') ?: System.getenv('PG_PASSWORD') ?: System.getenv('PGPASSWORD') ?: ''
+    environment 'PG_PASSWORD', pgPassword
+    def autoCreateDb = findProperty('autoCreateDatabase') ?: System.getenv('AUTO_CREATE_DATABASE') ?: 'false'
+    environment 'AUTO_CREATE_DATABASE', autoCreateDb.toString()
+}
+
+tasks.register('runHeliosClient', JavaExec) {
+    group = 'helios'
+    description = 'Клиент к удалённому хосту (-PheliosHost= / SERVER_HOST, -PserverPort= / SERVER_PORT)'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.example.client.ClientMain'
+    standardInput = System.in
+    environment 'SERVER_HOST', findProperty('heliosHost') ?: System.getenv('SERVER_HOST') ?: 'localhost'
+    environment 'SERVER_PORT', findProperty('serverPort') ?: System.getenv('SERVER_PORT') ?: '5555'
+}
+

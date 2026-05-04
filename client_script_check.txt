@@ -1,0 +1,8 @@
+help
+info
+show
+add script_city.json
+show
+count_less_than_standard_of_living HIGH
+filter_by_governor Governor
+print_field_ascending_standard_of_living

@@ -1,0 +1,246 @@
+package org.example.db;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.example.data.City;
+import org.example.data.Climate;
+import org.example.data.Coordinates;
+import org.example.data.Government;
+import org.example.data.Human;
+import org.example.data.StandardOfLiving;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+
+public class CityRepository {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
+
+    private final Database database;
+
+    public CityRepository(Database database) {
+        this.database = database;
+    }
+
+    public List<City> loadAllOrderedByStack() throws Exception {
+        try (Connection c = database.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
+                     SELECT c.id, c.stack_order, c.name, c.coordinates_json, c.creation_date, c.area,
+                            c.population, c.meters_above_sea_level, c.climate, c.government,
+                            c.standard_of_living, c.governor_json, c.owner_user_id, u.login AS owner_login
+                     FROM cities c
+                     JOIN users u ON u.id = c.owner_user_id
+                     ORDER BY c.stack_order ASC
+                     """)) {
+            try (ResultSet rs = ps.executeQuery()) {
+                List<City> out = new ArrayList<>();
+                while (rs.next()) {
+                    out.add(mapRow(rs));
+                }
+                return out;
+            }
+        }
+    }
+
+    public long insertCity(City city, long ownerUserId, int stackOrder) throws Exception {
+        try (Connection c = database.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                shiftStackOrdersFrom(c, stackOrder, 1);
+                long id = insertRow(c, city, ownerUserId, stackOrder);
+                c.commit();
+                return id;
+            } catch (Exception e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
+        }
+    }
+
+    public boolean deleteByIdAndOwner(long cityId, long ownerUserId) throws Exception {
+        try (Connection c = database.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                Integer order = findStackOrder(c, cityId, ownerUserId);
+                if (order == null) {
+                    c.rollback();
+                    return false;
+                }
+                try (PreparedStatement del = c.prepareStatement(
+                        "DELETE FROM cities WHERE id = ? AND owner_user_id = ?")) {
+                    del.setLong(1, cityId);
+                    del.setLong(2, ownerUserId);
+                    if (del.executeUpdate() != 1) {
+                        c.rollback();
+                        return false;
+                    }
+                }
+                shiftStackOrdersFrom(c, order + 1, -1);
+                c.commit();
+                return true;
+            } catch (Exception e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
+        }
+    }
+
+    public boolean updateByIdAndOwner(long cityId, long ownerUserId, City patch) throws Exception {
+        try (Connection c = database.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
+                     UPDATE cities SET
+                         name = ?,
+                         coordinates_json = ?,
+                         area = ?,
+                         population = ?,
+                         meters_above_sea_level = ?,
+                         climate = ?,
+                         government = ?,
+                         standard_of_living = ?,
+                         governor_json = ?
+                     WHERE id = ? AND owner_user_id = ?
+                     """)) {
+            ps.setString(1, patch.getName());
+            ps.setString(2, MAPPER.writeValueAsString(patch.getCoordinates()));
+            ps.setDouble(3, patch.getArea());
+            ps.setInt(4, patch.getPopulation());
+            ps.setInt(5, patch.getMetersAboveSeaLevel());
+            ps.setString(6, patch.getClimate().name());
+            ps.setString(7, patch.getGovernment().name());
+            if (patch.getStandardOfLiving() == null) {
+                ps.setString(8, null);
+            } else {
+                ps.setString(8, patch.getStandardOfLiving().name());
+            }
+            ps.setString(9, patch.getGovernor() == null ? null : MAPPER.writeValueAsString(patch.getGovernor()));
+            ps.setLong(10, cityId);
+            ps.setLong(11, ownerUserId);
+            return ps.executeUpdate() == 1;
+        }
+    }
+
+    public int deleteAllByOwner(long ownerUserId) throws Exception {
+        try (Connection c = database.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM cities WHERE owner_user_id = ?")) {
+                ps.setLong(1, ownerUserId);
+                int n = ps.executeUpdate();
+                compactStackOrdersOnConnection(c);
+                c.commit();
+                return n;
+            } catch (Exception e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
+        }
+    }
+
+    private static void compactStackOrdersOnConnection(Connection c) throws Exception {
+        List<Long> ids = new ArrayList<>();
+        try (PreparedStatement sel = c.prepareStatement("SELECT id FROM cities ORDER BY stack_order ASC");
+             ResultSet rs = sel.executeQuery()) {
+            while (rs.next()) {
+                ids.add(rs.getLong(1));
+            }
+        }
+        try (PreparedStatement up = c.prepareStatement("UPDATE cities SET stack_order = ? WHERE id = ?")) {
+            for (int i = 0; i < ids.size(); i++) {
+                up.setInt(1, i);
+                up.setLong(2, ids.get(i));
+                up.addBatch();
+            }
+            up.executeBatch();
+        }
+    }
+
+    private static void shiftStackOrdersFrom(Connection c, int fromIndex, int delta) throws Exception {
+        if (delta == 0) {
+            return;
+        }
+        String sql = delta > 0
+                ? "UPDATE cities SET stack_order = stack_order + ? WHERE stack_order >= ?"
+                : "UPDATE cities SET stack_order = stack_order + ? WHERE stack_order >= ?";
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, delta);
+            ps.setInt(2, fromIndex);
+            ps.executeUpdate();
+        }
+    }
+
+    private static Integer findStackOrder(Connection c, long cityId, long ownerUserId) throws Exception {
+        try (PreparedStatement ps = c.prepareStatement(
+                "SELECT stack_order FROM cities WHERE id = ? AND owner_user_id = ?")) {
+            ps.setLong(1, cityId);
+            ps.setLong(2, ownerUserId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static long insertRow(Connection c, City city, long ownerUserId, int stackOrder) throws Exception {
+        try (PreparedStatement ps = c.prepareStatement("""
+                INSERT INTO cities (
+                    stack_order, name, coordinates_json, creation_date, area, population,
+                    meters_above_sea_level, climate, government, standard_of_living, governor_json, owner_user_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
+                """)) {
+            ps.setInt(1, stackOrder);
+            ps.setString(2, city.getName());
+            ps.setString(3, MAPPER.writeValueAsString(city.getCoordinates()));
+            ps.setTimestamp(4, new Timestamp(city.getCreationDate().getTime()));
+            ps.setDouble(5, city.getArea());
+            ps.setInt(6, city.getPopulation());
+            ps.setInt(7, city.getMetersAboveSeaLevel());
+            ps.setString(8, city.getClimate().name());
+            ps.setString(9, city.getGovernment().name());
+            if (city.getStandardOfLiving() == null) {
+                ps.setString(10, null);
+            } else {
+                ps.setString(10, city.getStandardOfLiving().name());
+            }
+            ps.setString(11, city.getGovernor() == null ? null : MAPPER.writeValueAsString(city.getGovernor()));
+            ps.setLong(12, ownerUserId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getLong(1);
+                }
+            }
+        }
+        throw new IllegalStateException("INSERT did not return id");
+    }
+
+    private static City mapRow(ResultSet rs) throws Exception {
+        City city = new City();
+        city.setId(rs.getLong("id"));
+        city.setName(rs.getString("name"));
+        city.setCoordinates(MAPPER.readValue(rs.getString("coordinates_json"), Coordinates.class));
+        city.setCreationDate(rs.getTimestamp("creation_date"));
+        city.setArea(rs.getDouble("area"));
+        city.setPopulation(rs.getInt("population"));
+        city.setMetersAboveSeaLevel(rs.getInt("meters_above_sea_level"));
+        city.setClimate(Climate.valueOf(rs.getString("climate")));
+        city.setGovernment(Government.valueOf(rs.getString("government")));
+        String sol = rs.getString("standard_of_living");
+        city.setStandardOfLiving(sol == null ? null : StandardOfLiving.valueOf(sol));
+        String govJson = rs.getString("governor_json");
+        city.setGovernor(govJson == null ? null : MAPPER.readValue(govJson, Human.class));
+        city.setOwnerUserId(rs.getLong("owner_user_id"));
+        city.setOwnerLogin(rs.getString("owner_login"));
+        return city;
+    }
+}
