@@ -17,7 +17,7 @@ public class ServerMain {
 
         int port = args.length >= 1
                 ? Integer.parseInt(args[0])
-                : Integer.parseInt(AppConfig.get(dotenv, "SERVER_PORT", "5555"));
+                : Integer.parseInt(AppConfig.get(dotenv, "SERVER_PORT", "5234"));
 
         DatabaseCreator.tryCreateApplicationDatabase(dotenv);
 

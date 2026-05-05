@@ -1,7 +1,7 @@
 plugins {
     id 'java'
     id 'application'
-    id 'com.github.johnrengelman.shadow' version '8.3.5'
+    id 'com.gradleup.shadow' version '8.3.5'
 }
 
 group = 'org.example'
@@ -110,7 +110,7 @@ tasks.register('writeServerClasspath') {
     }
 }
 
-/** Один JAR со всеми зависимостями — на helios: java -jar build/libs/lab-all.jar 5555 */
+/** Один JAR со всеми зависимостями — на helios: java -jar build/libs/lab-all.jar 5234 */
 shadowJar {
     archiveFileName = 'lab-all.jar'
     mergeServiceFiles()
@@ -129,7 +129,7 @@ tasks.register('runClient', JavaExec) {
     description = 'Run TCP collection client'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'org.example.client.ClientMain'
-    // For cleaner interactive console: gradle -q --console=plain runClient --args="localhost 5555"
+    // For cleaner interactive console: gradle -q --console=plain runClient --args="localhost 5234"
     standardInput = System.in
 }
 
@@ -141,7 +141,7 @@ tasks.register('runHeliosServer', JavaExec) {
     mainClass = 'org.example.server.ServerMain'
     standardInput = System.in
     def unixUser = System.getenv('USER') ?: System.getProperty('user.name') ?: ''
-    def listenPort = (findProperty('serverPort') ?: System.getenv('SERVER_PORT') ?: '5555').toString()
+    def listenPort = (findProperty('serverPort') ?: System.getenv('SERVER_PORT') ?: '5234').toString()
     args listenPort
     environment 'PG_HOST', findProperty('pgHost') ?: System.getenv('PG_HOST') ?: 'pg'
     environment 'PG_PORT', findProperty('pgPort') ?: System.getenv('PG_PORT') ?: '5432'
@@ -160,6 +160,6 @@ tasks.register('runHeliosClient', JavaExec) {
     mainClass = 'org.example.client.ClientMain'
     standardInput = System.in
     environment 'SERVER_HOST', findProperty('heliosHost') ?: System.getenv('SERVER_HOST') ?: 'localhost'
-    environment 'SERVER_PORT', findProperty('serverPort') ?: System.getenv('SERVER_PORT') ?: '5555'
+    environment 'SERVER_PORT', findProperty('serverPort') ?: System.getenv('SERVER_PORT') ?: '5234'
 }
 

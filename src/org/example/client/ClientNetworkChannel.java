@@ -23,7 +23,7 @@ public class ClientNetworkChannel {
     public ClientNetworkChannel() {
         Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
         this.host = AppConfig.get(dotenv, "SERVER_HOST", "localhost");
-        this.port = Integer.parseInt(AppConfig.get(dotenv, "SERVER_PORT", "5555"));
+        this.port = Integer.parseInt(AppConfig.get(dotenv, "SERVER_PORT", "5234"));
     }
 
     public CommandResponse send(CommandRequest request) {

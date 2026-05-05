@@ -1,5 +1,8 @@
 # === GRADLE (Артефакты сборки) ===
 .gradle/
+.gradle-local/
+.gradle-wrapper-fix/
+.gradle-wrapper-fix2/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
@@ -17,6 +20,8 @@ out/
 *.war
 *.ear
 *.hprof
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
 
 # === СИСТЕМНЫЕ ФАЙЛЫ ===
 .DS_Store

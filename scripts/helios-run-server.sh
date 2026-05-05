@@ -7,7 +7,7 @@ cd "$ROOT"
 export PG_HOST="${PG_HOST:-pg}"
 export PG_PORT="${PG_PORT:-5432}"
 export PG_DATABASE="${PG_DATABASE:-studs}"
-export SERVER_PORT="${SERVER_PORT:-5555}"
+export SERVER_PORT="${SERVER_PORT:-5234}"
 export AUTO_CREATE_DATABASE="${AUTO_CREATE_DATABASE:-false}"
 
 if [[ -z "${PG_USER:-}" ]]; then
