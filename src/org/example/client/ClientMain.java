@@ -30,14 +30,14 @@ public class ClientMain {
 
             String trimmed = line;
             if (trimmed.toLowerCase().startsWith("login ")) {
-                String rest = trimmed.substring(6).trim();
+                String rest = trimmed.substring(6);
                 int sp = rest.indexOf(' ');
                 if (sp < 0) {
                     System.out.println("Формат: login <логин> <пароль>");
                     continue;
                 }
-                String user = rest.substring(0, sp).trim();
-                String pass = rest.substring(sp + 1).trim();
+                String user = rest.substring(0, sp);
+                String pass = rest.substring(sp + 1);
                 if (user.isEmpty() || pass.isEmpty()) {
                     System.out.println("Логин и пароль не должны быть пустыми");
                     continue;

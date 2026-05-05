@@ -32,8 +32,10 @@ if [[ "${USE_GRADLE:-0}" != "1" ]]; then
   echo "Нет файла: $FAT_JAR" >&2
   echo "На helios Gradle часто падает с «Gradle build daemon». Соберите JAR на своём ПК:" >&2
   echo "  bash gradlew shadowJar" >&2
-  echo "  mkdir -p build/libs && scp build/libs/lab-all.jar ${USER}@helios:~/labuba7/prog_lab7/build/libs/" >&2
-  echo "Повторите: bash scripts/helios-run-server.sh $PORT" >&2
+  echo "На helios создайте каталог и скопируйте JAR в build/libs этого же клона (имя папки важно, напр. prog_lab_7):" >&2
+  echo "  mkdir -p \"$ROOT/build/libs\"" >&2
+  echo "  scp build/libs/lab-all.jar ${USER}@<хост-helios>:$ROOT/build/libs/" >&2
+  echo "Повторите из каталога проекта: bash scripts/helios-run-server.sh $PORT" >&2
   echo "(Опционально попробовать Gradle на helios: USE_GRADLE=1 bash scripts/helios-run-server.sh $PORT)" >&2
   exit 1
 fi
