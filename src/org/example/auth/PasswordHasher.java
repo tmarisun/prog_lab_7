@@ -7,9 +7,7 @@ import java.util.HexFormat;
 
 public final class PasswordHasher {
 
-    private PasswordHasher() {
-
-    }
+    private PasswordHasher() {}
 
     public static String sha384Hex(String password) {
         if (password == null) {

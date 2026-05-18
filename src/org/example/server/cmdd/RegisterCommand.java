@@ -3,6 +3,7 @@ package org.example.server.cmdd;
 import org.example.db.UserRepository;
 import org.example.net.protocol.CommandRequest;
 import org.example.net.protocol.CommandResponse;
+import org.example.net.protocol.MessageKeys;
 import org.example.server.ServerCollectionService;
 
 public class RegisterCommand implements ServerCommandHandler {
@@ -18,16 +19,16 @@ public class RegisterCommand implements ServerCommandHandler {
         try {
             if (request.getLogin() == null || request.getLogin().isBlank()
                     || request.getPassword() == null || request.getPassword().isEmpty()) {
-                return CommandResponse.fail("Укажите логин и пароль: register <login> <password>");
+                return CommandResponse.fail(MessageKeys.REGISTER_ARGS);
             }
             if (!userRepository.register(request.getLogin(), request.getPassword())) {
-                return CommandResponse.fail("Пользователь с таким логином уже существует");
+                return CommandResponse.fail(MessageKeys.REGISTER_EXISTS);
             }
-            return CommandResponse.ok("Регистрация успешна. Выполните login на клиенте для дальнейшей работы.");
+            return CommandResponse.ok(MessageKeys.REGISTER_OK);
         } catch (IllegalArgumentException e) {
-            return CommandResponse.fail(e.getMessage());
+            return CommandResponse.failRaw(e.getMessage());
         } catch (Exception e) {
-            return CommandResponse.fail("Ошибка регистрации: " + e.getMessage());
+            return CommandResponse.fail(MessageKeys.REGISTER_FAILED, e.getMessage());
         }
     }
 }

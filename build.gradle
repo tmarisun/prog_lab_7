@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
     id 'com.gradleup.shadow' version '8.3.5'
 }
 
@@ -20,10 +21,35 @@ java {
     }
 }
 
+def javafxVersion = '21.0.6'
+
+javafx {
+    version = javafxVersion
+    modules = ['javafx.controls', 'javafx.fxml']
+}
+
+def javafxPlatform = {
+    def os = org.gradle.internal.os.OperatingSystem.current()
+    if (os.isWindows()) return 'win'
+    if (os.isLinux()) return 'linux'
+    if (os.isMacOsX()) return 'mac'
+    throw new GradleException('Unsupported OS for JavaFX')
+}()
+
+/** JAR-файлы JavaFX с нативным classifier (win/linux/mac) — нужны для --module-path. */
+def javafxRuntimeJars = {
+    configurations.runtimeClasspath.findAll { f ->
+        f.name.startsWith('javafx-') && f.name.endsWith('.jar')
+    }
+}
+
 sourceSets {
     main {
         java {
             srcDirs = ['src']
+        }
+        resources {
+            srcDirs = ['src/resources', 'src/main/resources']
         }
     }
     test {
@@ -48,11 +74,15 @@ dependencies {
     implementation 'io.github.cdimascio:dotenv-java:3.0.0'
     implementation 'org.postgresql:postgresql:42.7.3'
 
+    implementation 'org.apache.logging.log4j:log4j-api:2.24.3'
+    implementation 'org.apache.logging.log4j:log4j-core:2.24.3'
 
+    implementation "org.openjfx:javafx-controls:${javafxVersion}:${javafxPlatform}"
+    implementation "org.openjfx:javafx-fxml:${javafxVersion}:${javafxPlatform}"
 }
 
 application {
-    mainClass = 'org.example.Main'
+    mainClass = 'org.example.server.ServerMain'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -73,7 +103,7 @@ tasks.withType(JavaExec).configureEach {
 
 // Helios / cgroup: иначе «Could not reserve enough space for code cache (245760K)» у второго java (runClient/runServer).
 tasks.withType(JavaExec).configureEach { t ->
-    if (t.name in ['run', 'runServer', 'runClient', 'runHeliosServer', 'runHeliosClient']) {
+    if (t.name in ['run', 'runServer', 'runClient', 'runFxClient', 'runHeliosServer', 'runHeliosClient']) {
         t.minHeapSize = '32m'
         t.maxHeapSize = '256m'
         t.jvmArgs(
@@ -131,6 +161,33 @@ tasks.register('runClient', JavaExec) {
     mainClass = 'org.example.client.ClientMain'
     // For cleaner interactive console: gradle -q --console=plain runClient --args="localhost 5234"
     standardInput = System.in
+}
+
+tasks.register('runFxClient', JavaExec) {
+    group = 'application'
+    description = 'Run JavaFX GUI client'
+    mainClass = 'org.example.client.fx.ClientFxApp'
+    dependsOn classes
+
+    doFirst {
+        def fxJars = javafxRuntimeJars()
+        def appJars = configurations.runtimeClasspath.findAll { f ->
+            !fxJars.contains(f)
+        }
+        classpath = files(appJars) + sourceSets.main.output
+        jvmArgs = (jvmArgs ?: []) + [
+                '--module-path', files(fxJars).asPath,
+                '--add-modules', 'javafx.controls,javafx.fxml',
+        ]
+    }
+}
+
+/** Создать таблицы users/cities на удалённом PostgreSQL (читает .env). */
+tasks.register('initDb', JavaExec) {
+    group = 'application'
+    description = 'Создать схему БД (users, cities) по настройкам .env / PG_*'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.example.db.DatabaseInitMain'
 }
 
 /** Запуск на сервере helios: ./gradlew runHeliosServer (или scripts/helios-run-server.sh). */

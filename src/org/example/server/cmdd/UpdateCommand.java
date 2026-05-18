@@ -3,6 +3,7 @@ package org.example.server.cmdd;
 import org.example.data.City;
 import org.example.net.protocol.CommandRequest;
 import org.example.net.protocol.CommandResponse;
+import org.example.net.protocol.MessageKeys;
 import org.example.server.ServerCollectionService;
 
 public class UpdateCommand implements ServerCommandHandler {
@@ -11,18 +12,24 @@ public class UpdateCommand implements ServerCommandHandler {
         City city = request.getCity();
         Long id = request.getId();
 
-        if (id == null || city == null) {
-            return CommandResponse.fail("ID and City payload are required");
+        if (id == null) {
+            return CommandResponse.fail(MessageKeys.ID_REQUIRED);
         }
 
         try {
+            if (city == null) {
+                if (service.canUpdate(id, request.getAuthenticatedUserId())) {
+                    return CommandResponse.ok(MessageKeys.CAN_UPDATE);
+                }
+                return CommandResponse.fail(MessageKeys.NOT_OWNED, id);
+            }
             boolean updated = service.update(id, city, request.getAuthenticatedUserId());
             if (updated) {
-                return CommandResponse.ok("Updated");
+                return CommandResponse.ok(MessageKeys.UPDATED);
             }
-            return CommandResponse.fail("City not found or not owned by you: " + id);
+            return CommandResponse.fail(MessageKeys.NOT_OWNED, id);
         } catch (Exception e) {
-            return CommandResponse.fail("Update error: " + e.getMessage());
+            return CommandResponse.fail(MessageKeys.UPDATE_FAILED, e.getMessage());
         }
     }
 }

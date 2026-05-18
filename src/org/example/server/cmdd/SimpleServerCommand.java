@@ -4,8 +4,8 @@ import org.example.HelpFormatter;
 import org.example.net.protocol.CommandRequest;
 import org.example.net.protocol.CommandResponse;
 import org.example.net.protocol.CommandType;
+import org.example.net.protocol.MessageKeys;
 import org.example.server.ServerCollectionService;
-import org.example.server.cmdd.ServerCommandHandler;
 
 import java.util.function.Function;
 
@@ -21,10 +21,13 @@ public class SimpleServerCommand implements ServerCommandHandler {
     @Override
     public CommandResponse execute(ServerCollectionService service, CommandRequest request) {
         try {
+            if (type == CommandType.HELP) {
+                return CommandResponse.okRaw(HelpFormatter.serverHelpMessage());
+            }
             String result = action.apply(service);
-            return CommandResponse.ok(result);
+            return CommandResponse.okRaw(result);
         } catch (Exception e) {
-            return CommandResponse.fail("Error executing " + type + ": " + e.getMessage());
+            return CommandResponse.fail(MessageKeys.EXECUTE_ERROR, type, e.getMessage());
         }
     }
 }

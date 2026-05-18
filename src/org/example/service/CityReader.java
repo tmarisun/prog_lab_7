@@ -7,6 +7,7 @@ import org.example.validate.InputValidator;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Scanner;
+import java.util.function.Supplier;
 
 import static org.example.validate.InputValidator.*;
 
@@ -17,6 +18,7 @@ import static org.example.validate.InputValidator.*;
 public class CityReader {
 
     public static Scanner scanner = new Scanner(System.in);
+    private static final int MAX_ATTEMPTS = 100;
 
     public static void setScanner(Scanner scanner) {
         CityReader.scanner = scanner;
@@ -24,166 +26,52 @@ public class CityReader {
 
     public static City readCity() throws IllegalArgumentException {
         Scanner scanner = CityReader.scanner;
-        final int MAX_ATTEMPTS = 100;
-        int attempts = 0;
         City city = new City();
 
-        while(attempts < MAX_ATTEMPTS) {
-            System.out.println("Entering city data (attempt " + (attempts + 1) + ") ===");
-            try {
-                city.setName(readName(scanner));
-                break;
-            }
-            catch(IllegalArgumentException e) {
-                System.err.println("Error validation: " + e.getMessage());
-                System.out.println("Try to enter the data again.\n");
-                attempts++;
-            }
-        }
+        city.setName(retry("Entering city data", () -> readName(scanner)));
+        city.setCoordinates(retry("Enter the coordinates", () -> {
+            float x = readCoordinateX(scanner);
+            double y = readCoordinateY(scanner);
+            Coordinates coordinates = new Coordinates(x, y);
+            CoordinatesValidator.validateCoordinates(coordinates);
+            return coordinates;
+        }));
+        city.setArea(retry(null, () -> readDoubleArea(scanner)));
+        city.setPopulation(retry(null, () -> readIntPollution(scanner)));
+        city.setClimate(retry(null, () -> readEnumClimate(scanner)));
+        city.setMetersAboveSeaLevel(retry(null, () -> readSeaLevel(scanner)));
+        city.setGovernment(retry(null, () -> readEnumGovernment(scanner)));
+        city.setStandardOfLiving(retry(null, () -> readEnumStandard(scanner)));
+        city.setGovernor(retry(null, () -> readGovernor(scanner)));
 
-        while(attempts < MAX_ATTEMPTS) {
-            System.out.println("Enter the coordinates:");
-            try {
-                float x = readCoordinateX(scanner);
-                double y = readCoordinateY(scanner);
-                Coordinates coordinates = new Coordinates(x, y);
-                CoordinatesValidator.validateCoordinates(coordinates);
-                city.setCoordinates(coordinates);
-                break;
-            }
-            catch(IllegalArgumentException e) {
-                System.err.println("Error validation: " + e.getMessage());
-                System.out.println("Try to enter the data again.\n");
-                attempts++;
-            }
-        }
-
-        while(attempts < MAX_ATTEMPTS) {
-            try {
-                double area = readDoubleArea(scanner);
-                InputValidator.validateArea(area);
-                city.setArea(area);
-                break;
-            }
-            catch(IllegalArgumentException e) {
-                System.err.println("Error validation: " + e.getMessage());
-                System.out.println("Try to enter the data again.\n");
-                attempts++;
-            }
-        }
-
-        while(attempts < MAX_ATTEMPTS) {
-            try{
-                int population = readIntPollution(scanner);
-                InputValidator.validatePopulation(population);
-                city.setPopulation(population);
-                break;
-            }
-            catch(IllegalArgumentException e) {
-                System.err.println("Error validation: " + e.getMessage());
-                System.out.println("Try to enter the data again.\n");
-                attempts++;
-            }
-        }
-
-        while(attempts < MAX_ATTEMPTS){
-            try{
-                Climate climate = readEnumClimate(scanner);
-                city.setClimate(climate);
-                break;
-            }
-            catch(IllegalArgumentException e) {
-                System.err.println("Error validation: " + e.getMessage());
-                System.out.println("Try to enter the data again.\n");
-                attempts++;
-            }
-        }
-
-        while(attempts < MAX_ATTEMPTS){
-            try{
-                int metersAboveSeaLevel = readSeaLevel(scanner);
-                city.setMetersAboveSeaLevel(metersAboveSeaLevel);
-                break;
-            }
-            catch(IllegalArgumentException e) {
-                System.err.println("Error validation: " + e.getMessage());
-                System.out.println("Try to enter the data again.\n");
-                attempts++;
-            }
-        }
-
-        while(attempts < MAX_ATTEMPTS){
-            try {
-                Government government = readEnumGovernment(scanner);
-                city.setGovernment(government);
-                break;
-            }
-            catch(IllegalArgumentException e) {
-                System.err.println("Error validation: " + e.getMessage());
-                System.out.println("Try to enter the data again.\n");
-                attempts++;
-            }
-
-        }
-
-        while(attempts < MAX_ATTEMPTS){
-            try{
-                StandardOfLiving standardOfLiving = readEnumStandard(scanner);
-                city.setStandardOfLiving(standardOfLiving);
-                break;
-            }
-            catch(IllegalArgumentException e) {
-                System.err.println("Error validation: " + e.getMessage());
-                System.out.println("Try to enter the data again.\n");
-                attempts++;
-            }
-        }
-
-        while(attempts < MAX_ATTEMPTS){
-            try{
-                Human governor = null;
-                if (readYesNo(scanner)) {
-                    int date = 0;
-                    while(date < MAX_ATTEMPTS){
-                        try{
-                            java.util.Date birthday = readDate(scanner);
-                            governor = new Human(birthday);
-                            break;
-                        }
-                        catch(IllegalArgumentException e) {
-                            System.err.println("Error validation: " + e.getMessage());
-                            System.out.println("Try to enter the date again.\n");
-                            date++;
-                        }
-                    }
-
-                    if (governor == null) {
-                        throw new IllegalArgumentException("Too many failed attempts for birthday");
-                    }
-                }
-
-                city.setGovernor(governor);
-                break;
-            }
-            catch(IllegalArgumentException e) {
-                System.err.println("Error validation: " + e.getMessage());
-                System.out.println("Try to enter the data again.\n");
-                attempts++;
-            }
-        }
-        // creationDate генерируется автоматически — локальное время системы в момент создания объекта
         city.setCreationDate(new Date());
-
-        // ID and creationDate are assigned on server side for network mode.
-        city.setId(0L);
-
-        if(attempts == MAX_ATTEMPTS) {
-            System.out.println("You've used a lot of input attempts, repeat after 10 minutes.");
-            Runtime.getRuntime().exit(0);
-        }
+        city.setId(null);
 
         System.out.println("The data is accepted!");
         return city;
+    }
+
+    private static Human readGovernor(Scanner scanner) {
+        if (!readYesNo(scanner)) {
+            return null;
+        }
+        Date birthday = retry(null, () -> readDate(scanner));
+        return new Human(birthday);
+    }
+
+    private static <T> T retry(String prompt, Supplier<T> action) {
+        for (int attempts = 0; attempts < MAX_ATTEMPTS; attempts++) {
+            if (prompt != null && !prompt.isBlank()) {
+                System.out.println(prompt + " (attempt " + (attempts + 1) + ") ===");
+            }
+            try {
+                return action.get();
+            } catch (IllegalArgumentException e) {
+                System.err.println("Error validation: " + e.getMessage());
+                System.out.println("Try to enter the data again.\n");
+            }
+        }
+        throw new IllegalArgumentException("Too many failed attempts");
     }
 
     private static String readName(Scanner scanner) throws IllegalArgumentException {

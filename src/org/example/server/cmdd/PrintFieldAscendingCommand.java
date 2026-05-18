@@ -3,6 +3,7 @@ package org.example.server.cmdd;
 import org.example.data.StandardOfLiving;
 import org.example.net.protocol.CommandRequest;
 import org.example.net.protocol.CommandResponse;
+import org.example.net.protocol.MessageKeys;
 import org.example.server.ServerCollectionService;
 
 import java.util.List;
@@ -14,10 +15,12 @@ public class PrintFieldAscendingCommand implements ServerCommandHandler {
 
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < values.size(); i++) {
-            if (i > 0) builder.append(", ");
+            if (i > 0) {
+                builder.append(", ");
+            }
             builder.append(values.get(i).name());
         }
 
-        return CommandResponse.ok(builder.toString());
+        return CommandResponse.ok(MessageKeys.PRINT_FIELD, builder.toString());
     }
 }

@@ -1,111 +1,112 @@
 package org.example.client;
 
 import io.github.cdimascio.dotenv.Dotenv;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.example.config.AppConfig;
 import org.example.net.protocol.CommandRequest;
 import org.example.net.protocol.CommandResponse;
+import org.example.net.protocol.MessageKeys;
+import org.example.net.protocol.WireCodec;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
-import java.util.concurrent.TimeoutException;
+import java.net.Socket;
 
+/**
+ * TCP-клиент: один запрос — один ответ (формат {@link WireCodec}).
+ */
 public class ClientNetworkChannel {
+
+    private static final Logger log = LogManager.getLogger(ClientNetworkChannel.class);
+
     private final String host;
     private final int port;
-    private static final long CONNECT_TIMEOUT_MS = 0;
-    private static final long IO_TIMEOUT_MS = 0;
+    /** {@code json} — новый сервер; {@code legacy} — старый JAR на Helios (только Java-сериализация). */
+    private final boolean jsonWire;
+    private static final int CONNECT_TIMEOUT_MS = 10_000;
+    private static final int SO_TIMEOUT_MS = 30_000;
 
     public ClientNetworkChannel() {
         Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
         this.host = AppConfig.get(dotenv, "SERVER_HOST", "localhost");
         this.port = Integer.parseInt(AppConfig.get(dotenv, "SERVER_PORT", "5234"));
+        String wire = AppConfig.get(dotenv, "SERVER_WIRE", "legacy");
+        this.jsonWire = "json".equalsIgnoreCase(wire);
+        log.info("Клиент подключается к {}:{} (SERVER_WIRE={})", host, port, jsonWire ? "json" : "legacy");
     }
 
     public CommandResponse send(CommandRequest request) {
         for (int attempt = 1; attempt <= 3; attempt++) {
-            try (SocketChannel channel = SocketChannel.open()) {
-                channel.configureBlocking(false);
-                channel.connect(new InetSocketAddress(host, port));
-                long connectStart = System.currentTimeMillis();
-                while (!channel.finishConnect()) {
-                    if (System.currentTimeMillis() - connectStart > CONNECT_TIMEOUT_MS) {
-                        throw new TimeoutException("connect timeout");
-                    }
-                    Thread.sleep(50);
-                }
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MS);
+                socket.setSoTimeout(SO_TIMEOUT_MS);
+                socket.setTcpNoDelay(true);
 
-                byte[] payload = serialize(request);
-                ByteBuffer out = ByteBuffer.allocate(4 + payload.length);
-                out.putInt(payload.length);
-                out.put(payload);
-                out.flip();
-                writeFully(channel, out, IO_TIMEOUT_MS);
-
-                ByteBuffer lenBuf = ByteBuffer.allocate(4);
-                readFully(channel, lenBuf, IO_TIMEOUT_MS);
-                lenBuf.flip();
-                int len = lenBuf.getInt();
-                ByteBuffer body = ByteBuffer.allocate(len);
-                readFully(channel, body, IO_TIMEOUT_MS);
-                return deserialize(body.array());
+                writeRequest(socket, request);
+                return readResponse(socket);
             } catch (Exception e) {
+                log.warn("Запрос к {}:{} не удался (попытка {}/3): {}", host, port, attempt, e.toString());
                 if (attempt == 3) {
-                    return CommandResponse.fail("Server unavailable: " + e.getMessage());
+                    if (isConnectionRefused(e)) {
+                        return CommandResponse.fail(MessageKeys.CONNECTION_REFUSED, host, port);
+                    }
+                    return CommandResponse.fail(MessageKeys.SERVER_UNAVAILABLE_DETAIL, rootCauseMessage(e));
                 }
-                try { Thread.sleep(300); } catch (InterruptedException ignored) { }
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
         }
-        return CommandResponse.fail("Server unavailable");
+        return CommandResponse.fail(MessageKeys.SERVER_UNAVAILABLE);
     }
 
-    private byte[] serialize(CommandRequest request) throws Exception {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        try (ObjectOutputStream oos = new ObjectOutputStream(bos)) {
-            oos.writeObject(request);
-        }
-        return bos.toByteArray();
+    private void writeRequest(Socket socket, CommandRequest request) throws Exception {
+        byte[] payload = jsonWire
+                ? WireCodec.encodeJson(request)
+                : WireCodec.encodeJava(request);
+        DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+        out.writeInt(payload.length);
+        out.write(payload);
+        out.flush();
     }
 
-    private CommandResponse deserialize(byte[] bytes) throws Exception {
-        try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bytes))) {
-            return (CommandResponse) ois.readObject();
+    private CommandResponse readResponse(Socket socket) throws Exception {
+        DataInputStream in = new DataInputStream(socket.getInputStream());
+        int len = in.readInt();
+        if (len <= 0 || len > 16 * 1024 * 1024) {
+            throw new IllegalStateException("invalid response length: " + len);
         }
+        byte[] body = in.readNBytes(len);
+        if (body.length != len) {
+            throw new IllegalStateException(MessageKeys.SERVER_CONNECTION_CLOSED);
+        }
+        return WireCodec.decodeResponse(body);
     }
 
-    private static void readFully(SocketChannel channel, ByteBuffer buffer, long timeoutMs) throws Exception {
-        long start = System.currentTimeMillis();
-        while (buffer.hasRemaining()) {
-            int read = channel.read(buffer);
-            if (read > 0) {
-                continue;
+    private static boolean isConnectionRefused(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof java.net.ConnectException) {
+                return true;
             }
-            if (read < 0) {
-                throw new IllegalStateException("Server closed connection");
+            String m = t.getMessage();
+            if (m != null && m.contains("Connection refused")) {
+                return true;
             }
-            if (System.currentTimeMillis() - start > timeoutMs) {
-                throw new TimeoutException("read timeout");
-            }
-            Thread.sleep(20);
         }
+        return false;
     }
 
-    private static void writeFully(SocketChannel channel, ByteBuffer buffer, long timeoutMs) throws Exception {
-        long start = System.currentTimeMillis();
-        while (buffer.hasRemaining()) {
-            int written = channel.write(buffer);
-            if (written > 0) {
-                continue;
-            }
-            if (System.currentTimeMillis() - start > timeoutMs) {
-                throw new TimeoutException("write timeout");
-            }
-            Thread.sleep(20);
+    private static String rootCauseMessage(Throwable e) {
+        Throwable c = e;
+        while (c.getCause() != null) {
+            c = c.getCause();
         }
+        String msg = c.getMessage();
+        return msg != null && !msg.isBlank() ? msg : c.getClass().getSimpleName();
     }
 }
-

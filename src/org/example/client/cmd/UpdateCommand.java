@@ -1,6 +1,5 @@
 package org.example.client.cmd;
 
-import org.example.data.City;
 import org.example.net.protocol.CommandRequest;
 import org.example.net.protocol.CommandType;
 
@@ -20,10 +19,6 @@ public class UpdateCommand implements ClientCommand {
         if (parts.length > 1) {
             throw new IllegalArgumentException("Лишние аргументы. Использование: update <id> (поля — с консоли)");
         }
-        City city = CityInputHelper.readCity();
-        if (city == null) {
-            throw new IllegalArgumentException("Ввод города отменён или некорректен");
-        }
-        request.setCity(city);
+        request.setCity(null);
     }
 }

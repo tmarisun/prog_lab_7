@@ -12,8 +12,16 @@ public class ClientSession {
     }
 
     public boolean isPresent() {
-
         return login != null && !login.isBlank() && password != null;
+    }
+
+    public String getLogin() {
+        return login;
+    }
+
+    public void clear() {
+        login = null;
+        password = null;
     }
 
     public void applyTo(CommandRequest request) {

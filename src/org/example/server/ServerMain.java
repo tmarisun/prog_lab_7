@@ -1,6 +1,8 @@
 package org.example.server;
 
 import io.github.cdimascio.dotenv.Dotenv;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.example.config.AppConfig;
 import org.example.db.CityRepository;
 import org.example.db.Database;
@@ -12,22 +14,32 @@ import java.sql.Connection;
 
 public class ServerMain {
 
+    private static final Logger log = LogManager.getLogger(ServerMain.class);
+
     public static void main(String[] args) throws Exception {
+        log.info("Запуск сервера: инициализация конфигурации");
         Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
 
-        int port = args.length >= 1
-                ? Integer.parseInt(args[0])
-                : Integer.parseInt(AppConfig.get(dotenv, "SERVER_PORT", "5234"));
+        int port;
+        if (args.length >= 1) {
+            port = Integer.parseInt(args[0]);
+        } else {
+            port = Integer.parseInt(AppConfig.get(dotenv, "SERVER_PORT", "5234"));
+        }
+        log.info("Параметры запуска: порт прослушивания TCP = {}", port);
 
+        log.info("Проверка/создание базы приложения (если настроено)");
         DatabaseCreator.tryCreateApplicationDatabase(dotenv);
 
         Database database = new Database(dotenv);
-        System.out.println("Подключение к " + database.getJdbcUrlForLogging() + " как " + database.getUser());
+        log.info("Подключение к СУБД: {} , пользователь JDBC: {}", database.getJdbcUrlForLogging(), database.getUser());
         try (Connection c = database.getConnection()) {
+            log.info("Соединение с PostgreSQL установлено, применение схемы");
             new SchemaInitializer().ensureSchema(c);
+            log.info("Схема БД готова");
         } catch (Exception e) {
-            System.err.println("Ошибка PostgreSQL: " + e.getMessage());
-            System.err.println("Проверьте PG_HOST, PG_DATABASE, PG_USER и что СУБД принимает подключение без пароля для этого пользователя.");
+            log.error("Ошибка PostgreSQL при старте: {}. Проверьте PG_HOST, PG_DATABASE, PG_USER и доступ СУБД.",
+                    e.getMessage(), e);
             throw e;
         }
 
@@ -37,7 +49,7 @@ public class ServerMain {
         service.loadFromDatabase();
 
         ServerCommandProcessor processor = new ServerCommandProcessor(service, userRepository);
-        System.out.println("TCP-сервер слушает порт " + port + " (подключайте клиентов к хосту helios и этому порту)");
+        log.info("TCP-сервер готов к приёму подключений на порту {}", port);
         new ServerConnectionAcceptor(port, processor).start();
     }
 }

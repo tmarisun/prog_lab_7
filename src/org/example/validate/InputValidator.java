@@ -1,6 +1,7 @@
 package org.example.validate;
 
 import org.example.data.City;
+import org.example.db.CityRepository;
 import java.io.*;
 
 import java.util.Collection;
@@ -16,13 +17,8 @@ import java.util.Set;
 
 public class InputValidator {
 
-    public static void validateUniqueIds(Collection<City> cities) throws IllegalArgumentException {
-        Set<Long> ids = new HashSet<>();
-        for (City city : cities) {
-            if (!ids.add(city.getId())) {
-                throw new IllegalArgumentException("Duplicate ID found: " + city.getId());
-            }
-        }
+    public static void validateUniqueIds(CityRepository cityRepository) throws Exception {
+        cityRepository.validateUniqueIdsInDatabase();
     }
 
     // === Coordinate Constraints ===
@@ -51,34 +47,24 @@ public class InputValidator {
         if (x == null) {
             throw new IllegalArgumentException("X coordinate cannot be empty");
         }
-
-        try {
-            if (x > MAX_X) {
-                throw new IllegalArgumentException(
-                        "X coordinate cannot exceed " + MAX_X + " (received: " + x + ")"
-                );
-            }
-            return x;
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("X coordinate must be a valid float number");
+        if (x > MAX_X) {
+            throw new IllegalArgumentException(
+                    "X coordinate cannot exceed " + MAX_X + " (received: " + x + ")"
+            );
         }
+        return x;
     }
 
     public static Double validateY(Double y) throws IllegalArgumentException {
         if (y == null) {
             throw new IllegalArgumentException("Y coordinate cannot be empty");
         }
-
-        try {
-            if (y > MAX_Y) {
-                throw new IllegalArgumentException(
-                        "Y coordinate cannot exceed " + MAX_Y + " (received: " + y + ")"
-                );
-            }
-            return y;
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Y coordinate must be a valid double number");
+        if (y > MAX_Y) {
+            throw new IllegalArgumentException(
+                    "Y coordinate cannot exceed " + MAX_Y + " (received: " + y + ")"
+            );
         }
+        return y;
     }
 
     //-----------------------------------------
@@ -103,13 +89,8 @@ public class InputValidator {
         if (population == null) {
             throw new IllegalArgumentException("Population cannot be empty");
         }
-
-        try {
-            if (population <= MIN_POPULATION) {
-                throw new IllegalArgumentException("Population must be greater than 0 (received: " + population + ")");
-            }
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Population must be a valid integer number");
+        if (population <= MIN_POPULATION) {
+            throw new IllegalArgumentException("Population must be greater than 0 (received: " + population + ")");
         }
     }
 

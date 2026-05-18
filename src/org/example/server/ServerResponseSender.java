@@ -1,23 +1,24 @@
 package org.example.server;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.example.net.protocol.CommandResponse;
+import org.example.net.protocol.WireCodec;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
-import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 
 public class ServerResponseSender {
-    public void send(OutputStream output, CommandResponse response) throws Exception {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        try (ObjectOutputStream oos = new ObjectOutputStream(bos)) {
-            oos.writeObject(response);
-        }
-        byte[] bytes = bos.toByteArray();
+
+    private static final Logger log = LogManager.getLogger(ServerResponseSender.class);
+
+    public void send(OutputStream output, CommandResponse response, boolean jsonWire) throws Exception {
+        byte[] bytes = jsonWire ? WireCodec.encodeJson(response) : WireCodec.encodeJava(response);
+        log.info("Сериализация ответа: формат={}, размер тела = {} байт",
+                jsonWire ? "JSON" : "Java", bytes.length);
         DataOutputStream dos = new DataOutputStream(output);
         dos.writeInt(bytes.length);
         dos.write(bytes);
         dos.flush();
     }
 }
-

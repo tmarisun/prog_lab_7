@@ -3,12 +3,11 @@ package org.example.config;
 import io.github.cdimascio.dotenv.Dotenv;
 
 /**
- * Читает настройки из .env (dotenv) и из переменных окружения процесса / system properties.
+ * Читает настройки из .env и из переменных окружения процесса.
  */
 public final class AppConfig {
 
-    private AppConfig() {
-    }
+    private AppConfig() {}
 
     public static String get(Dotenv dotenv, String key, String defaultValue) {
         if (dotenv != null) {

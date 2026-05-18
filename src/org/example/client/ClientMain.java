@@ -1,6 +1,7 @@
 package org.example.client;
 
 import org.example.data.City;
+import org.example.client.cmd.CityInputHelper;
 import org.example.net.protocol.CommandRequest;
 import org.example.net.protocol.CommandResponse;
 import org.example.net.protocol.CommandType;
@@ -24,26 +25,11 @@ public class ClientMain {
         while (true) {
             System.out.print("> ");
             String line = scanner.nextLine();
-            if (line.length() == 0) {
+            if (line.isEmpty()) {
                 continue;
             }
 
-            String trimmed = line;
-            if (trimmed.toLowerCase().startsWith("login ")) {
-                String rest = trimmed.substring(6);
-                int sp = rest.indexOf(' ');
-                if (sp < 0) {
-                    System.out.println("Формат: login <логин> <пароль>");
-                    continue;
-                }
-                String user = rest.substring(0, sp);
-                String pass = rest.substring(sp + 1);
-                if (user.isEmpty() || pass.isEmpty()) {
-                    System.out.println("Логин и пароль не должны быть пустыми");
-                    continue;
-                }
-                session.set(user, pass);
-                System.out.println("Учётные данные сохранены для этой сессии.");
+            if (handleLogin(line, session)) {
                 continue;
             }
 
@@ -68,12 +54,64 @@ public class ClientMain {
                 session.applyTo(req);
             }
 
+            if (!prepareUpdatePayloadIfAllowed(req, network)) {
+                continue;
+            }
+
             CommandResponse resp = network.send(req);
             printResponse(resp);
 
             if (resp.isSuccess() && req.getType() == CommandType.REGISTER) {
                 session.set(req.getLogin(), req.getPassword());
             }
+        }
+    }
+
+    private static boolean handleLogin(String line, ClientSession session) {
+        String trimmed = line.trim();
+        if (!trimmed.toLowerCase().startsWith("login ")) {
+            return false;
+        }
+
+        String rest = trimmed.substring(6);
+        int sp = rest.indexOf(' ');
+        if (sp < 0) {
+            System.out.println("Формат: login <логин> <пароль>");
+            return true;
+        }
+        String user = rest.substring(0, sp);
+        String pass = rest.substring(sp + 1);
+        if (user.isEmpty() || pass.isEmpty()) {
+            System.out.println("Логин и пароль не должны быть пустыми");
+            return true;
+        }
+
+        session.set(user, pass);
+        System.out.println("Учётные данные сохранены для этой сессии.");
+        return true;
+    }
+
+    private static boolean prepareUpdatePayloadIfAllowed(CommandRequest req, ClientNetworkChannel network) {
+        if (req.getType() != CommandType.UPDATE || req.getCity() != null) {
+            return true;
+        }
+
+        CommandResponse permissionResp = network.send(req);
+        printResponse(permissionResp);
+        if (!permissionResp.isSuccess()) {
+            return false;
+        }
+        try {
+            City city = CityInputHelper.readCity();
+            if (city == null) {
+                System.out.println("Ввод города отменён или некорректен");
+                return false;
+            }
+            req.setCity(city);
+            return true;
+        } catch (Exception e) {
+            System.out.println("Ошибка ввода города: " + e.getMessage());
+            return false;
         }
     }
 

@@ -7,19 +7,21 @@ import org.example.net.protocol.CommandType;
 public class InsertAtCommand implements ClientCommand {
     @Override
     public void execute(String arg, CommandRequest request) throws Exception {
-        if (arg == null || arg.trim().isEmpty()) {
-            throw new IllegalArgumentException("Нужен индекс: insert_at <индекс>");
-        }
-        String[] parts = arg.trim().split("\\s+");
         request.setType(CommandType.INSERT_AT);
-        try {
-            request.setIndex(Integer.parseInt(parts[0]));
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Индекс должен быть целым числом");
+
+        // In append-only mode index is ignored; parse it only for backward compatibility.
+        if (arg != null && !arg.trim().isEmpty()) {
+            String[] parts = arg.trim().split("\\s+");
+            if (parts.length > 1) {
+                throw new IllegalArgumentException("Использование: insert_at [индекс] (индекс опционален и игнорируется)");
+            }
+            try {
+                request.setIndex(Integer.parseInt(parts[0]));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Индекс должен быть целым числом");
+            }
         }
-        if (parts.length > 1) {
-            throw new IllegalArgumentException("Лишние аргументы. Использование: insert_at <индекс> (город — с консоли)");
-        }
+
         City city = CityInputHelper.readCity();
         if (city == null) {
             throw new IllegalArgumentException("Ввод города отменён или некорректен");

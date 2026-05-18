@@ -1,21 +1,23 @@
 package org.example.server;
 
-import org.example.net.protocol.CommandRequest;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.example.net.protocol.WireCodec;
 
-import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.InputStream;
-import java.io.ObjectInputStream;
 
 public class ServerRequestReader {
-    public CommandRequest read(InputStream input) throws Exception {
+
+    private static final Logger log = LogManager.getLogger(ServerRequestReader.class);
+
+    public ParsedRequest read(InputStream input) throws Exception {
         DataInputStream dis = new DataInputStream(input);
         int len = dis.readInt();
+        log.info("Десериализация запроса: размер тела по протоколу = {} байт", len);
         byte[] body = new byte[len];
         dis.readFully(body);
-        try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(body))) {
-            return (CommandRequest) ois.readObject();
-        }
+        boolean jsonWire = WireCodec.isJsonWire(body);
+        return new ParsedRequest(WireCodec.decodeRequest(body), jsonWire);
     }
 }
-

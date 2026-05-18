@@ -3,6 +3,7 @@ package org.example.server.cmdd;
 import org.example.data.City;
 import org.example.net.protocol.CommandRequest;
 import org.example.net.protocol.CommandResponse;
+import org.example.net.protocol.MessageKeys;
 import org.example.server.ServerCollectionService;
 
 public class AddCommand implements ServerCommandHandler {
@@ -10,13 +11,15 @@ public class AddCommand implements ServerCommandHandler {
     public CommandResponse execute(ServerCollectionService service, CommandRequest request) {
         City city = request.getCity();
         if (city == null) {
-            return CommandResponse.fail("City payload is required");
+            return CommandResponse.fail(MessageKeys.CITY_REQUIRED);
         }
         try {
             City added = service.add(city, request.getAuthenticatedUserId(), request.getLogin());
-            return CommandResponse.ok("Added city with id " + added.getId());
+            CommandResponse response = CommandResponse.ok(MessageKeys.ADDED, added.getId());
+            response.getCities().add(added);
+            return response;
         } catch (Exception e) {
-            return CommandResponse.fail("Failed to add city: " + e.getMessage());
+            return CommandResponse.fail(MessageKeys.ADD_FAILED, e.getMessage());
         }
     }
 }
