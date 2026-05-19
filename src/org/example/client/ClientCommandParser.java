@@ -68,7 +68,12 @@ public class ClientCommandParser {
 
         String[] parts = line.trim().split("\\s+", 2);
         String cmdName = parts[0].toLowerCase();
-        String arg = parts.length > 1 ? parts[1] : null;
+        String arg;
+        if (parts.length > 1) {
+            arg = parts[1];
+        } else {
+            arg = null;
+        }
 
         ClientCommand command = commands.get(cmdName);
 

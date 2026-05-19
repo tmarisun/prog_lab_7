@@ -7,9 +7,10 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import org.example.client.fx.i18n.I18n;
+import org.example.client.fx.i18n.LocaleListCell;
 import org.example.client.fx.i18n.SupportedLocale;
 import org.example.client.fx.util.FxMessages;
-import org.example.client.fx.util.FxTasks;
+import org.example.client.fx.util.BackgroundWorker;
 import org.example.client.service.CommandService;
 import org.example.net.protocol.CommandResponse;
 
@@ -98,20 +99,8 @@ public class LoginView extends BorderPane {
     private ComboBox<SupportedLocale> createLanguageBox() {
         ComboBox<SupportedLocale> box = new ComboBox<>();
         box.getItems().addAll(SupportedLocale.values());
-        box.setCellFactory(cb -> new ListCell<>() {
-            @Override
-            protected void updateItem(SupportedLocale item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.getNativeDisplayName());
-            }
-        });
-        box.setButtonCell(new ListCell<>() {
-            @Override
-            protected void updateItem(SupportedLocale item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.getNativeDisplayName());
-            }
-        });
+        box.setCellFactory(cb -> new LocaleListCell());
+        box.setButtonCell(new LocaleListCell());
         box.getSelectionModel().select(SupportedLocale.RU);
         box.setOnAction(e -> {
             SupportedLocale sel = box.getSelectionModel().getSelectedItem();
@@ -144,7 +133,7 @@ public class LoginView extends BorderPane {
         }
         setStatus(I18n.get("status.connecting"));
         loginButton.setDisable(true);
-        FxTasks.runAsync(
+        BackgroundWorker.run(
                 () -> commandService.login(login, password),
                 response -> {
                     loginButton.setDisable(false);
@@ -166,15 +155,11 @@ public class LoginView extends BorderPane {
         }
         setStatus(I18n.get("status.connecting"));
         registerButton.setDisable(true);
-        FxTasks.runAsync(
+        BackgroundWorker.run(
                 () -> commandService.register(login, password),
                 response -> {
                     registerButton.setDisable(false);
-                    if (response.isSuccess()) {
-                        setStatus(FxMessages.fromResponse(response));
-                    } else {
-                        setStatus(FxMessages.fromResponse(response));
-                    }
+                    setStatus(FxMessages.fromResponse(response));
                 },
                 err -> {
                     registerButton.setDisable(false);
@@ -185,7 +170,11 @@ public class LoginView extends BorderPane {
 
     private void handleAuthResponse(CommandResponse response, boolean fromLogin) {
         if (response.isSuccess()) {
-            setStatus(I18n.get(fromLogin ? "msg.login.ok" : "msg.register.ok"));
+            if (fromLogin) {
+                setStatus(I18n.get("msg.login.ok"));
+            } else {
+                setStatus(I18n.get("msg.register.ok"));
+            }
             onLoginSuccess.run();
         } else {
             setStatus(FxMessages.fromResponse(response));

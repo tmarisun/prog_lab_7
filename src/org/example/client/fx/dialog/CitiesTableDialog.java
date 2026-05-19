@@ -13,7 +13,7 @@ import org.example.client.fx.table.CityTableColumn;
 import org.example.client.fx.table.CityTablePipeline;
 import org.example.client.fx.table.CityTableViewBuilder;
 import org.example.client.fx.util.FxMessages;
-import org.example.client.fx.util.FxTasks;
+import org.example.client.fx.util.BackgroundWorker;
 import org.example.client.service.CommandService;
 import org.example.data.City;
 import java.util.ArrayList;
@@ -109,12 +109,11 @@ public final class CitiesTableDialog {
                     status.accept(I18n.get("error.noSelection"));
                     return;
                 }
-                var updatedOpt = CityFormDialog.showEditDialog(selected, userLogin);
-                if (updatedOpt.isEmpty()) {
+                City updated = CityFormDialog.showEditDialog(selected, userLogin);
+                if (updated == null) {
                     return;
                 }
-                City updated = updatedOpt.get();
-                FxTasks.runAsync(
+                BackgroundWorker.run(
                         () -> commands.update(selected.getId(), updated),
                         response -> {
                             status.accept(FxMessages.fromResponse(response));

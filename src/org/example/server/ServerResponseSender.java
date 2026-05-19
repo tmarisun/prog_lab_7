@@ -8,14 +8,16 @@ import org.example.net.protocol.WireCodec;
 import java.io.DataOutputStream;
 import java.io.OutputStream;
 
+/**
+ * Отправляет ответ: длина (int) + тело (Java-сериализация).
+ */
 public class ServerResponseSender {
 
     private static final Logger log = LogManager.getLogger(ServerResponseSender.class);
 
-    public void send(OutputStream output, CommandResponse response, boolean jsonWire) throws Exception {
-        byte[] bytes = jsonWire ? WireCodec.encodeJson(response) : WireCodec.encodeJava(response);
-        log.info("Сериализация ответа: формат={}, размер тела = {} байт",
-                jsonWire ? "JSON" : "Java", bytes.length);
+    public void send(OutputStream output, CommandResponse response) throws Exception {
+        byte[] bytes = WireCodec.encode(response);
+        log.info("Ответ: размер тела = {} байт", bytes.length);
         DataOutputStream dos = new DataOutputStream(output);
         dos.writeInt(bytes.length);
         dos.write(bytes);

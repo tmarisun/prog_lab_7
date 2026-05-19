@@ -22,6 +22,8 @@ public class InputValidator {
     }
 
     // === Coordinate Constraints ===
+    private static final float MIN_X = 0;
+    private static final double MIN_Y = 0;
     private static final float MAX_X = 959;
     private static final double MAX_Y = 613.0;
 
@@ -47,6 +49,11 @@ public class InputValidator {
         if (x == null) {
             throw new IllegalArgumentException("X coordinate cannot be empty");
         }
+        if (x < MIN_X) {
+            throw new IllegalArgumentException(
+                    "X coordinate cannot be negative (received: " + x + ")"
+            );
+        }
         if (x > MAX_X) {
             throw new IllegalArgumentException(
                     "X coordinate cannot exceed " + MAX_X + " (received: " + x + ")"
@@ -59,6 +66,11 @@ public class InputValidator {
         if (y == null) {
             throw new IllegalArgumentException("Y coordinate cannot be empty");
         }
+        if (y < MIN_Y) {
+            throw new IllegalArgumentException(
+                    "Y coordinate cannot be negative (received: " + y + ")"
+            );
+        }
         if (y > MAX_Y) {
             throw new IllegalArgumentException(
                     "Y coordinate cannot exceed " + MAX_Y + " (received: " + y + ")"
@@ -70,16 +82,8 @@ public class InputValidator {
     //-----------------------------------------
 
     public static void validateCoordinates(float x, double y) throws IllegalArgumentException {
-        if (x > MAX_X) {
-            throw new IllegalArgumentException(
-                    "X coordinate cannot exceed " + MAX_X + " (received: " + x + ")"
-            );
-        }
-        if (y > MAX_Y) {
-            throw new IllegalArgumentException(
-                    "Y coordinate cannot exceed " + MAX_Y + " (received: " + y + ")"
-            );
-        }
+        validateX(x);
+        validateY(y);
     }
 
     //------------------------------------------

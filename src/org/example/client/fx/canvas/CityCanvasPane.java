@@ -66,12 +66,16 @@ public class CityCanvasPane extends Pane {
         setCities(newCities, false);
     }
 
+    /** Обновить список городов на плоскости и перерисовать. */
     public void setCities(List<City> newCities, boolean animateAppear) {
         this.cities = List.copyOf(newCities);
         redraw();
         if (animateAppear) {
             for (Circle circle : shapesById.values()) {
-                playAppear(circle);
+                FadeTransition fade = new FadeTransition(Duration.millis(300), circle);
+                fade.setFromValue(0);
+                fade.setToValue(1);
+                fade.play();
             }
         }
     }
@@ -152,7 +156,11 @@ public class CityCanvasPane extends Pane {
         circle.setFill(OwnerColors.forOwner(rep.getOwnerLogin()));
         boolean repSelected = selectedCityId != null && cluster.stream()
                 .anyMatch(c -> selectedCityId.equals(c.getId()));
-        circle.setStrokeWidth(repSelected ? 3 : 1);
+        if (repSelected) {
+            circle.setStrokeWidth(3);
+        } else {
+            circle.setStrokeWidth(1);
+        }
         circle.setStroke(OwnerColors.forOwner(rep.getOwnerLogin()).darker());
         circle.setCursor(Cursor.HAND);
 
@@ -201,7 +209,11 @@ public class CityCanvasPane extends Pane {
 
         Circle circle = new Circle(cx, cy, radius);
         circle.setFill(OwnerColors.forOwner(city.getOwnerLogin()));
-        circle.setStrokeWidth(selectedCityId != null && selectedCityId.equals(city.getId()) ? 3 : 0);
+        if (isSelected(city.getId())) {
+            circle.setStrokeWidth(3);
+        } else {
+            circle.setStrokeWidth(0);
+        }
         circle.setStroke(OwnerColors.forOwner(city.getOwnerLogin()).darker());
         circle.setCursor(Cursor.HAND);
 
@@ -376,10 +388,20 @@ public class CityCanvasPane extends Pane {
         return MIN_RADIUS + t * (MAX_RADIUS - MIN_RADIUS);
     }
 
+    private boolean isSelected(Long cityId) {
+        if (selectedCityId == null || cityId == null) {
+            return false;
+        }
+        return selectedCityId.equals(cityId);
+    }
+
     private void updateSelectionStroke() {
         for (Map.Entry<Long, Circle> e : shapesById.entrySet()) {
-            boolean selected = selectedCityId != null && selectedCityId.equals(e.getKey());
-            e.getValue().setStrokeWidth(selected ? 3 : 0);
+            if (isSelected(e.getKey())) {
+                e.getValue().setStrokeWidth(3);
+            } else {
+                e.getValue().setStrokeWidth(0);
+            }
         }
     }
 
@@ -394,42 +416,25 @@ public class CityCanvasPane extends Pane {
 
     private String formatCityDetails(City city) {
         Coordinates c = city.getCoordinates();
-        String coords = c == null ? "—" : c.toString();
+        String coords;
+        if (c == null) {
+            coords = "—";
+        } else {
+            coords = c.toString();
+        }
+        String owner;
+        if (city.getOwnerLogin() == null) {
+            owner = "—";
+        } else {
+            owner = city.getOwnerLogin();
+        }
         return I18n.format("city.info.body",
                 String.valueOf(city.getId()),
                 coords,
                 I18n.formatNumber(city.getArea()),
                 I18n.formatNumber(city.getPopulation()),
-                city.getOwnerLogin() == null ? "—" : city.getOwnerLogin(),
+                owner,
                 I18n.formatDate(city.getCreationDate()));
     }
-
-    private void playAppear(Circle circle) {
-        circle.setOpacity(0);
-        FadeTransition fade = new FadeTransition(Duration.millis(350), circle);
-        fade.setFromValue(0);
-        fade.setToValue(1);
-        fade.play();
-        ScaleTransition scale = new ScaleTransition(Duration.millis(350), circle);
-        scale.setFromX(0.4);
-        scale.setFromY(0.4);
-        scale.setToX(1);
-        scale.setToY(1);
-        scale.play();
-    }
-
-    public void pulseCity(Long cityId) {
-        Circle circle = shapesById.get(cityId);
-        if (circle == null) {
-            return;
-        }
-        ScaleTransition scale = new ScaleTransition(Duration.millis(200), circle);
-        scale.setFromX(1);
-        scale.setFromY(1);
-        scale.setToX(1.2);
-        scale.setToY(1.2);
-        scale.setAutoReverse(true);
-        scale.setCycleCount(2);
-        scale.play();
-    }
+    
 }

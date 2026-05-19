@@ -11,28 +11,22 @@ import org.example.net.protocol.MessageKeys;
 import java.util.List;
 
 /**
- * Вызовы сервера для GUI (обёртка над {@link ClientNetworkChannel}).
+ * Все команды для GUI: собирает {@link CommandRequest}, шлёт через {@link ClientNetworkChannel}.
+ * Логин и пароль хранятся в {@link ClientSession} и добавляются в каждый запрос.
  */
 public class CommandService {
 
     private final ClientNetworkChannel channel = new ClientNetworkChannel();
     private final ClientSession session = new ClientSession();
 
-    public ClientSession getSession() {
-        return session;
-    }
-
-    public boolean isLoggedIn() {
-        return session.isPresent();
-    }
-
     public String getLogin() {
-        return session.isPresent() ? session.getLogin() : null;
+        if (session.isPresent()) {
+            return session.getLogin();
+        }
+        return null;
     }
 
-    /**
-     * Вход: сохраняем учётные данные; проверка — лёгкой командой {@link #info()}.
-     */
+
     public CommandResponse login(String login, String password) {
         if (login == null || login.isBlank() || password == null || password.isEmpty()) {
             return CommandResponse.fail(MessageKeys.EMPTY_CREDENTIALS);
@@ -52,7 +46,11 @@ public class CommandService {
     public CommandResponse register(String login, String password) {
         CommandRequest req = new CommandRequest();
         req.setType(CommandType.REGISTER);
-        req.setLogin(login != null ? login.trim() : null);
+        if (login != null) {
+            req.setLogin(login.trim());
+        } else {
+            req.setLogin(null);
+        }
         req.setPassword(password);
         return channel.send(req);
     }
@@ -118,9 +116,10 @@ public class CommandService {
     }
 
     public List<City> citiesFrom(CommandResponse response) {
-        return response != null && response.getCities() != null
-                ? response.getCities()
-                : List.of();
+        if (response != null && response.getCities() != null) {
+            return response.getCities();
+        }
+        return List.of();
     }
 
     private CommandResponse send(CommandType type, String arg) {

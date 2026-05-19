@@ -1,14 +1,25 @@
 package org.example.client.fx.dialog;
 
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
-import javafx.scene.control.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.TextField;
+import javafx.scene.control.Alert;
+import javafx.util.Callback;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import org.example.client.fx.i18n.I18n;
 import org.example.client.fx.util.CityOwnership;
-import org.example.client.fx.util.FormFieldFilters;
 import org.example.data.*;
 import org.example.validate.CoordinatesValidator;
 import org.example.validate.InputValidator;
@@ -20,30 +31,42 @@ import java.util.Optional;
 
 /**
  * Диалог ввода / редактирования города.
+ * При ошибке окно не закрывается — данные в полях сохраняются.
  */
 public final class CityFormDialog {
 
-    private CityFormDialog() {}
-
-    public static Optional<City> showAddDialog() {
-        return showDialog(null, null);
+    private CityFormDialog() {
     }
 
-    public static Optional<City> showEditDialog(City existing, String currentLogin) {
+    /** @return город или {@code null}, если отмена или ошибка */
+    public static City showAddDialog() {
+        return showDialog(null);
+    }
+
+    /** @return город или {@code null} */
+    public static City showEditDialog(City existing, String currentLogin) {
         if (!CityOwnership.isOwnedByUser(existing, currentLogin)) {
             new Alert(Alert.AlertType.WARNING, I18n.get("error.notOwner"), ButtonType.OK).showAndWait();
-            return Optional.empty();
+            return null;
         }
-        return showDialog(existing, currentLogin);
+        return showDialog(existing);
     }
 
-    private static Optional<City> showDialog(City existing, String currentLogin) {
+    private static City showDialog(City existing) {
         boolean edit = existing != null;
         Dialog<City> dialog = new Dialog<>();
-        dialog.setTitle(I18n.get(edit ? "dialog.edit.title" : "dialog.add.title"));
+        if (edit) {
+            dialog.setTitle(I18n.get("dialog.edit.title"));
+        } else {
+            dialog.setTitle(I18n.get("dialog.add.title"));
+        }
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         Button okButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
-        okButton.setText(I18n.get(edit ? "dialog.edit.ok" : "dialog.add.ok"));
+        if (edit) {
+            okButton.setText(I18n.get("dialog.edit.ok"));
+        } else {
+            okButton.setText(I18n.get("dialog.add.ok"));
+        }
         ((Button) dialog.getDialogPane().lookupButton(ButtonType.CANCEL))
                 .setText(I18n.get("dialog.add.cancel"));
 
@@ -54,12 +77,6 @@ public final class CityFormDialog {
         TextField populationField = new TextField();
         TextField metersField = new TextField("0");
 
-        FormFieldFilters.decimal(xField);
-        FormFieldFilters.decimal(yField);
-        FormFieldFilters.decimal(areaField);
-        FormFieldFilters.positiveInteger(populationField);
-        FormFieldFilters.integer(metersField);
-
         ComboBox<Climate> climateBox = enumCombo(Climate.values(), "climate.");
         ComboBox<Government> governmentBox = enumCombo(Government.values(), "government.");
         ComboBox<StandardOfLiving> solBox = enumCombo(StandardOfLiving.values(), "standardOfLiving.");
@@ -67,7 +84,12 @@ public final class CityFormDialog {
         CheckBox hasGovernor = new CheckBox(I18n.get("field.hasGovernor"));
         DatePicker birthdayPicker = new DatePicker();
         birthdayPicker.setDisable(true);
-        hasGovernor.selectedProperty().addListener((o, old, sel) -> birthdayPicker.setDisable(!sel));
+        hasGovernor.selectedProperty().addListener(new ChangeListener<Boolean>() {
+            @Override
+            public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean selected) {
+                birthdayPicker.setDisable(selected == null || !selected);
+            }
+        });
 
         if (edit) {
             fillFields(existing, nameField, xField, yField, areaField, populationField, metersField,
@@ -87,42 +109,71 @@ public final class CityFormDialog {
         GridPane grid = buildGrid(nameField, xField, yField, areaField, populationField, metersField,
                 climateBox, governmentBox, solBox, hasGovernor, birthdayPicker);
         VBox root = new VBox(8, grid, errorLabel);
-        root.setPadding(new Insets(0));
         dialog.getDialogPane().setContent(root);
 
         final City[] validated = new City[1];
 
-        okButton.addEventFilter(ActionEvent.ACTION, event -> {
-            errorLabel.setText("");
-            errorLabel.setVisible(false);
-            errorLabel.setManaged(false);
-            try {
-                City built = buildCity(nameField, xField, yField, areaField, populationField, metersField,
-                        climateBox, governmentBox, solBox, hasGovernor, birthdayPicker, edit);
-                if (edit) {
-                    built.setId(existing.getId());
-                    built.setCreationDate(existing.getCreationDate());
-                    built.setOwnerLogin(existing.getOwnerLogin());
-                    built.setOwnerUserId(existing.getOwnerUserId());
+        // Не закрывать диалог, если данные неверные
+        okButton.addEventFilter(ActionEvent.ACTION, new javafx.event.EventHandler<ActionEvent>() {
+            @Override
+            public void handle(ActionEvent event) {
+                errorLabel.setText("");
+                errorLabel.setVisible(false);
+                errorLabel.setManaged(false);
+                try {
+                    City built = buildCity(nameField, xField, yField, areaField, populationField, metersField,
+                            climateBox, governmentBox, solBox, hasGovernor, birthdayPicker, edit);
+                    if (edit) {
+                        built.setId(existing.getId());
+                        built.setCreationDate(existing.getCreationDate());
+                        built.setOwnerLogin(existing.getOwnerLogin());
+                        built.setOwnerUserId(existing.getOwnerUserId());
+                    }
+                    validated[0] = built;
+                } catch (IllegalArgumentException ex) {
+                    showFormError(errorLabel, formatValidationError(ex));
+                    event.consume();
                 }
-                validated[0] = built;
-            } catch (IllegalArgumentException ex) {
-                String msg = ex.getMessage();
-                if (ex instanceof NumberFormatException) {
-                    msg = I18n.get("error.invalidNumber");
-                }
-                showFormError(errorLabel, msg);
-                event.consume();
             }
         });
 
-        dialog.setResultConverter(btn -> btn == ButtonType.OK ? validated[0] : null);
+        dialog.setResultConverter(new Callback<ButtonType, City>() {
+            @Override
+            public City call(ButtonType btn) {
+                if (btn == ButtonType.OK) {
+                    return validated[0];
+                }
+                return null;
+            }
+        });
 
-        return dialog.showAndWait();
+        Optional<City> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            return result.get();
+        }
+        return null;
+    }
+
+    private static String formatValidationError(IllegalArgumentException ex) {
+        if (ex instanceof NumberFormatException) {
+            return I18n.get("error.invalidNumber");
+        }
+        String raw = ex.getMessage();
+        if (raw != null && raw.contains("cannot be negative")) {
+            return I18n.get("error.coordNegative");
+        }
+        if (raw != null && !raw.isBlank()) {
+            return raw;
+        }
+        return I18n.get("error.formInvalid");
     }
 
     private static void showFormError(Label errorLabel, String message) {
-        errorLabel.setText(message != null && !message.isBlank() ? message : I18n.get("error.formInvalid"));
+        if (message != null && !message.isBlank()) {
+            errorLabel.setText(message);
+        } else {
+            errorLabel.setText(I18n.get("error.formInvalid"));
+        }
         errorLabel.setVisible(true);
         errorLabel.setManaged(true);
     }
@@ -194,21 +245,27 @@ public final class CityFormDialog {
     private static <E extends Enum<E>> ComboBox<E> enumCombo(E[] values, String keyPrefix) {
         ComboBox<E> box = new ComboBox<>();
         box.getItems().addAll(values);
-        box.setCellFactory(lv -> new ListCell<>() {
-            @Override
-            protected void updateItem(E item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : I18n.get(keyPrefix + item.name()));
-            }
-        });
-        box.setButtonCell(new ListCell<>() {
-            @Override
-            protected void updateItem(E item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : I18n.get(keyPrefix + item.name()));
-            }
-        });
+        box.setCellFactory(listView -> new EnumListCell<>(keyPrefix));
+        box.setButtonCell(new EnumListCell<>(keyPrefix));
         return box;
+    }
+
+    private static class EnumListCell<E extends Enum<E>> extends ListCell<E> {
+        private final String keyPrefix;
+
+        EnumListCell(String keyPrefix) {
+            this.keyPrefix = keyPrefix;
+        }
+
+        @Override
+        protected void updateItem(E item, boolean empty) {
+            super.updateItem(item, empty);
+            if (empty || item == null) {
+                setText(null);
+            } else {
+                setText(I18n.get(keyPrefix + item.name()));
+            }
+        }
     }
 
     private static City buildCity(
@@ -228,21 +285,21 @@ public final class CityFormDialog {
         City city = new City();
         city.setName(InputValidator.validateName(nameField.getText().trim()));
 
-        float x = InputValidator.validateX(Float.parseFloat(xField.getText().trim()));
-        double y = InputValidator.validateY(Double.parseDouble(yField.getText().trim()));
+        float x = InputValidator.validateX(parseFloat(xField.getText().trim()));
+        double y = InputValidator.validateY(parseDouble(yField.getText().trim()));
         Coordinates coords = new Coordinates(x, y);
         CoordinatesValidator.validateCoordinates(coords);
         city.setCoordinates(coords);
 
-        double area = Double.parseDouble(areaField.getText().trim());
+        double area = parseDouble(areaField.getText().trim());
         InputValidator.validateArea(area);
         city.setArea(area);
 
-        int pop = Integer.parseInt(populationField.getText().trim());
+        int pop = parseInt(populationField.getText().trim());
         InputValidator.validatePopulation(pop);
         city.setPopulation(pop);
 
-        city.setMetersAboveSeaLevel(Integer.parseInt(metersField.getText().trim()));
+        city.setMetersAboveSeaLevel(parseInt(metersField.getText().trim()));
         city.setClimate(climateBox.getValue());
         Government gov = governmentBox.getValue();
         if (gov == null) {
@@ -269,6 +326,30 @@ public final class CityFormDialog {
             city.setId(null);
         }
         return city;
+    }
+
+    private static float parseFloat(String text) {
+        try {
+            return Float.parseFloat(text);
+        } catch (NumberFormatException e) {
+            throw new NumberFormatException(I18n.get("error.invalidNumber"));
+        }
+    }
+
+    private static double parseDouble(String text) {
+        try {
+            return Double.parseDouble(text);
+        } catch (NumberFormatException e) {
+            throw new NumberFormatException(I18n.get("error.invalidNumber"));
+        }
+    }
+
+    private static int parseInt(String text) {
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            throw new NumberFormatException(I18n.get("error.invalidNumber"));
+        }
     }
 
     private static void requireNonEmpty(TextField field, String fieldLabel) {

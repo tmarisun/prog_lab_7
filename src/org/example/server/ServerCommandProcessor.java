@@ -10,10 +10,11 @@ import org.example.net.protocol.CommandType;
 import org.example.net.protocol.MessageKeys;
 import org.example.server.cmdd.*;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Проверка логина и выбор команды по типу (простой switch).
+ */
 public class ServerCommandProcessor {
 
     private static final Logger log = LogManager.getLogger(ServerCommandProcessor.class);
@@ -21,35 +22,24 @@ public class ServerCommandProcessor {
     private final ServerCollectionService service;
     private final UserRepository userRepository;
     private final RegisterCommand registerCommand;
-    private final Map<CommandType, ServerCommandHandler> handlers = new HashMap<>();
+    private final InfoCommand infoCommand = new InfoCommand();
+    private final ClearCommand clearCommand = new ClearCommand();
+    private final AddCommand addCommand = new AddCommand();
+    private final AddIfMaxCommand addIfMaxCommand = new AddIfMaxCommand();
+    private final UpdateCommand updateCommand = new UpdateCommand();
+    private final InsertAtCommand insertAtCommand = new InsertAtCommand();
+    private final RemoveByIdCommand removeByIdCommand = new RemoveByIdCommand();
+    private final ShowCommand showCommand = new ShowCommand();
+    private final FilterByGovernorCommand filterByGovernorCommand = new FilterByGovernorCommand();
+    private final CountLessThanCommand countLessThanCommand = new CountLessThanCommand();
+    private final PrintFieldAscendingCommand printFieldAscendingCommand = new PrintFieldAscendingCommand();
+    private final SimpleServerCommand helpCommand = new SimpleServerCommand(
+            CommandType.HELP, s -> HelpFormatter.serverHelpMessage());
 
     public ServerCommandProcessor(ServerCollectionService service, UserRepository userRepository) {
         this.service = service;
         this.userRepository = userRepository;
         this.registerCommand = new RegisterCommand(userRepository);
-        registerHandlers();
-    }
-
-    private void registerHandlers() {
-        handlers.put(CommandType.HELP,
-                new SimpleServerCommand(CommandType.HELP, s -> HelpFormatter.serverHelpMessage()));
-
-        handlers.put(CommandType.INFO, new InfoCommand());
-
-        handlers.put(CommandType.CLEAR, new ClearCommand());
-
-        handlers.put(CommandType.ADD, new AddCommand());
-        handlers.put(CommandType.ADD_IF_MAX, new AddIfMaxCommand());
-        handlers.put(CommandType.UPDATE, new UpdateCommand());
-        handlers.put(CommandType.INSERT_AT, new InsertAtCommand());
-        handlers.put(CommandType.REMOVE_BY_ID, new RemoveByIdCommand());
-
-        handlers.put(CommandType.SHOW, new ShowCommand());
-        handlers.put(CommandType.FILTER_BY_GOVERNOR, new FilterByGovernorCommand());
-        handlers.put(CommandType.COUNT_LESS_THAN_STANDARD_OF_LIVING, new CountLessThanCommand());
-        handlers.put(CommandType.PRINT_FIELD_ASCENDING_STANDARD_OF_LIVING, new PrintFieldAscendingCommand());
-
-        handlers.put(CommandType.EXIT, (s, r) -> CommandResponse.ok(MessageKeys.CLIENT_CLOSED));
     }
 
     public CommandResponse process(CommandRequest req) {
@@ -57,30 +47,23 @@ public class ServerCommandProcessor {
             CommandType type = req.getType();
             log.info("Обработка запроса: тип={}", type);
             if (type == null) {
-                log.warn("Отклонён запрос: пустой тип команды");
                 return CommandResponse.fail(MessageKeys.EMPTY_COMMAND);
             }
 
             if (type == CommandType.REGISTER) {
-                log.info("Регистрация пользователя: логин={}", req.getLogin());
-                CommandResponse r = registerCommand.execute(service, req);
-                log.info("Регистрация завершена: success={}", r.isSuccess());
-                return r;
+                return registerCommand.execute(service, req);
             }
 
             CommandResponse authError = authenticateAndAttachUser(req);
             if (authError != null) {
-                log.warn("Аутентификация не пройдена для логина={}: {}", req.getLogin(), authError.getMessage());
                 return authError;
             }
 
-            log.info("Аутентификация успешна, userId={}, выполнение команды {}", req.getAuthenticatedUserId(), type);
-            CommandResponse out = dispatch(type, req);
-            log.info("Команда {} выполнена: success={}", type, out.isSuccess());
-            return out;
+            log.info("Аутентификация успешна, userId={}", req.getAuthenticatedUserId());
+            return executeCommand(type, req);
 
         } catch (Exception e) {
-            log.error("Внутренняя ошибка при обработке запроса: {}", e.getMessage(), e);
+            log.error("Внутренняя ошибка: {}", e.getMessage(), e);
             return CommandResponse.fail(MessageKeys.INTERNAL_ERROR, e.getMessage());
         }
     }
@@ -90,20 +73,45 @@ public class ServerCommandProcessor {
             return CommandResponse.fail(MessageKeys.AUTH_REQUIRED);
         }
 
-        Optional<Long> userId = userRepository.authenticate(req.getLogin(), req.getPassword());
-        if (userId.isEmpty()) {
+        Optional<Long> userIdOpt = userRepository.authenticate(req.getLogin(), req.getPassword());
+        if (userIdOpt.isEmpty()) {
             return CommandResponse.fail(MessageKeys.AUTH_FAILED);
         }
-        req.setAuthenticatedUserId(userId.get());
+        req.setAuthenticatedUserId(userIdOpt.get());
         return null;
     }
 
-    private CommandResponse dispatch(CommandType type, CommandRequest req) {
-        ServerCommandHandler handler = handlers.get(type);
-        if (handler == null) {
-            return CommandResponse.fail(MessageKeys.UNSUPPORTED_COMMAND, type);
+    private CommandResponse executeCommand(CommandType type, CommandRequest req) {
+        switch (type) {
+            case HELP:
+                return helpCommand.execute(service, req);
+            case INFO:
+                return infoCommand.execute(service, req);
+            case CLEAR:
+                return clearCommand.execute(service, req);
+            case ADD:
+                return addCommand.execute(service, req);
+            case ADD_IF_MAX:
+                return addIfMaxCommand.execute(service, req);
+            case UPDATE:
+                return updateCommand.execute(service, req);
+            case INSERT_AT:
+                return insertAtCommand.execute(service, req);
+            case REMOVE_BY_ID:
+                return removeByIdCommand.execute(service, req);
+            case SHOW:
+                return showCommand.execute(service, req);
+            case FILTER_BY_GOVERNOR:
+                return filterByGovernorCommand.execute(service, req);
+            case COUNT_LESS_THAN_STANDARD_OF_LIVING:
+                return countLessThanCommand.execute(service, req);
+            case PRINT_FIELD_ASCENDING_STANDARD_OF_LIVING:
+                return printFieldAscendingCommand.execute(service, req);
+            case EXIT:
+                return CommandResponse.ok(MessageKeys.CLIENT_CLOSED);
+            default:
+                return CommandResponse.fail(MessageKeys.UNSUPPORTED_COMMAND, type);
         }
-        return handler.execute(service, req);
     }
 
     public CommandResponse processServerConsoleCommand(String line) {
@@ -113,13 +121,10 @@ public class ServerCommandProcessor {
         String command = line.toLowerCase();
         try {
             if ("help".equals(command)) {
-                log.info("Консоль сервера: выполнена команда help");
                 return CommandResponse.ok("Консоль сервера: help — краткая справка; данные только в PostgreSQL.");
             }
-            log.warn("Консоль сервера: неизвестная команда «{}»", line);
             return CommandResponse.fail("Unknown server command");
         } catch (Exception e) {
-            log.error("Ошибка консольной команды сервера: {}", e.getMessage(), e);
             return CommandResponse.fail("Server command error: " + e.getMessage());
         }
     }

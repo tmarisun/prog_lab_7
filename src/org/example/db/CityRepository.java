@@ -128,7 +128,7 @@ public class CityRepository {
             } else {
                 ps.setString(8, patch.getStandardOfLiving().name());
             }
-            ps.setString(9, patch.getGovernor() == null ? null : MAPPER.writeValueAsString(patch.getGovernor()));
+            ps.setString(9, governorJson(patch.getGovernor()));
             ps.setLong(10, cityId);
             ps.setLong(11, ownerUserId);
             return ps.executeUpdate() == 1;
@@ -199,7 +199,7 @@ public class CityRepository {
             } else {
                 ps.setString(11, city.getStandardOfLiving().name());
             }
-            ps.setString(12, city.getGovernor() == null ? null : MAPPER.writeValueAsString(city.getGovernor()));
+            ps.setString(12, governorJson(city.getGovernor()));
             ps.setLong(13, ownerUserId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -220,14 +220,40 @@ public class CityRepository {
         city.setPopulation(rs.getInt("population"));
         city.setMetersAboveSeaLevel(rs.getInt("meters_above_sea_level"));
         String climate = rs.getString("climate");
-        city.setClimate(climate == null ? null : Climate.valueOf(climate));
+        city.setClimate(parseClimate(rs.getString("climate")));
         city.setGovernment(Government.valueOf(rs.getString("government")));
-        String sol = rs.getString("standard_of_living");
-        city.setStandardOfLiving(sol == null ? null : StandardOfLiving.valueOf(sol));
-        String govJson = rs.getString("governor_json");
-        city.setGovernor(govJson == null ? null : MAPPER.readValue(govJson, Human.class));
+        city.setStandardOfLiving(parseStandardOfLiving(rs.getString("standard_of_living")));
+        city.setGovernor(parseGovernor(rs.getString("governor_json")));
         city.setOwnerUserId(rs.getLong("owner_user_id"));
         city.setOwnerLogin(rs.getString("owner_login"));
         return city;
+    }
+
+    private static String governorJson(Human governor) throws Exception {
+        if (governor == null) {
+            return null;
+        }
+        return MAPPER.writeValueAsString(governor);
+    }
+
+    private static Climate parseClimate(String name) {
+        if (name == null) {
+            return null;
+        }
+        return Climate.valueOf(name);
+    }
+
+    private static StandardOfLiving parseStandardOfLiving(String name) {
+        if (name == null) {
+            return null;
+        }
+        return StandardOfLiving.valueOf(name);
+    }
+
+    private static Human parseGovernor(String govJson) throws Exception {
+        if (govJson == null) {
+            return null;
+        }
+        return MAPPER.readValue(govJson, Human.class);
     }
 }

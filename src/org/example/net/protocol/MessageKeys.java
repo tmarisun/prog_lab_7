@@ -17,7 +17,6 @@ public final class MessageKeys {
     public static final String EMPTY_COMMAND = "response.server.emptyCommand";
     public static final String INTERNAL_ERROR = "response.server.internalError";
     public static final String UNSUPPORTED_COMMAND = "response.server.unsupportedCommand";
-    public static final String COMMAND_ERROR = "response.server.commandError";
     public static final String EXECUTE_ERROR = "response.server.executeError";
 
     public static final String CITY_REQUIRED = "response.city.required";

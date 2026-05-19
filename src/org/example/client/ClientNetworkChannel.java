@@ -15,7 +15,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 
 /**
- * TCP-клиент: один запрос — один ответ (формат {@link WireCodec}).
+ * TCP-клиент: одно подключение на одну команду (запрос → ответ → закрытие).
  */
 public class ClientNetworkChannel {
 
@@ -23,8 +23,6 @@ public class ClientNetworkChannel {
 
     private final String host;
     private final int port;
-    /** {@code json} — новый сервер; {@code legacy} — старый JAR на Helios (только Java-сериализация). */
-    private final boolean jsonWire;
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int SO_TIMEOUT_MS = 30_000;
 
@@ -32,9 +30,7 @@ public class ClientNetworkChannel {
         Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
         this.host = AppConfig.get(dotenv, "SERVER_HOST", "localhost");
         this.port = Integer.parseInt(AppConfig.get(dotenv, "SERVER_PORT", "5234"));
-        String wire = AppConfig.get(dotenv, "SERVER_WIRE", "legacy");
-        this.jsonWire = "json".equalsIgnoreCase(wire);
-        log.info("Клиент подключается к {}:{} (SERVER_WIRE={})", host, port, jsonWire ? "json" : "legacy");
+        log.info("Клиент: сервер {}:{}", host, port);
     }
 
     public CommandResponse send(CommandRequest request) {
@@ -46,6 +42,7 @@ public class ClientNetworkChannel {
 
                 writeRequest(socket, request);
                 return readResponse(socket);
+
             } catch (Exception e) {
                 log.warn("Запрос к {}:{} не удался (попытка {}/3): {}", host, port, attempt, e.toString());
                 if (attempt == 3) {
@@ -66,9 +63,7 @@ public class ClientNetworkChannel {
     }
 
     private void writeRequest(Socket socket, CommandRequest request) throws Exception {
-        byte[] payload = jsonWire
-                ? WireCodec.encodeJson(request)
-                : WireCodec.encodeJava(request);
+        byte[] payload = WireCodec.encode(request);
         DataOutputStream out = new DataOutputStream(socket.getOutputStream());
         out.writeInt(payload.length);
         out.write(payload);
@@ -107,6 +102,9 @@ public class ClientNetworkChannel {
             c = c.getCause();
         }
         String msg = c.getMessage();
-        return msg != null && !msg.isBlank() ? msg : c.getClass().getSimpleName();
+        if (msg != null && !msg.isBlank()) {
+            return msg;
+        }
+        return c.getClass().getSimpleName();
     }
 }

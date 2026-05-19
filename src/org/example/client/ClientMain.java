@@ -36,7 +36,13 @@ public class ClientMain {
             CommandRequest req = parser.parse(line);
             if (req == null) {
                 String parseError = parser.getLastError();
-                System.out.println("Ошибка ввода: " + (parseError != null ? parseError : "неизвестная"));
+                String errText;
+                if (parseError != null) {
+                    errText = parseError;
+                } else {
+                    errText = "неизвестная";
+                }
+                System.out.println("Ошибка ввода: " + errText);
                 continue;
             }
 

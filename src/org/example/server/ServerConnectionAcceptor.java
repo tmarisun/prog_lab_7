@@ -47,21 +47,21 @@ public class ServerConnectionAcceptor {
         }
     }
 
+    /** Один клиент: прочитать запрос → выполнить → отправить ответ → закрыть сокет. */
     private void handleClient(Socket socket) {
         String remote = String.valueOf(socket.getRemoteSocketAddress());
         try {
-            ParsedRequest parsed = requestReader.read(socket.getInputStream());
-            CommandRequest request = parsed.request();
+            CommandRequest request = requestReader.read(socket.getInputStream());
             log.info("Запрос получен от {}: тип команды={} логин={}",
                     remote,
-                    request != null && request.getType() != null ? request.getType() : "null",
-                    request != null && request.getLogin() != null ? request.getLogin() : "-");
+                    formatCommandType(request),
+                    formatLogin(request));
 
             CommandResponse response = processor.process(request);
 
             log.info("Ответ сформирован для {}: success={}",
                     remote, response != null && response.isSuccess());
-            if (sendAndClose(socket, response, parsed.jsonWire())) {
+            if (sendAndClose(socket, response)) {
                 log.info("Ответ отправлён по сети, сокет {} закрыт", remote);
             } else {
                 log.warn("Ответ не был отправлён (ошибка записи), сокет {} закрыт", remote);
@@ -72,9 +72,9 @@ public class ServerConnectionAcceptor {
         }
     }
 
-    private boolean sendAndClose(Socket socket, CommandResponse response, boolean jsonWire) {
+    private boolean sendAndClose(Socket socket, CommandResponse response) {
         try {
-            responseSender.send(socket.getOutputStream(), response, jsonWire);
+            responseSender.send(socket.getOutputStream(), response);
             return true;
         } catch (Exception e) {
             log.error("Ошибка отправки ответа клиенту {}: {}", socket.getRemoteSocketAddress(), e.getMessage(), e);
@@ -82,6 +82,20 @@ public class ServerConnectionAcceptor {
         } finally {
             closeQuietly(socket);
         }
+    }
+
+    private static String formatCommandType(CommandRequest request) {
+        if (request != null && request.getType() != null) {
+            return String.valueOf(request.getType());
+        }
+        return "null";
+    }
+
+    private static String formatLogin(CommandRequest request) {
+        if (request != null && request.getLogin() != null) {
+            return request.getLogin();
+        }
+        return "-";
     }
 
     private static void closeQuietly(Socket socket) {

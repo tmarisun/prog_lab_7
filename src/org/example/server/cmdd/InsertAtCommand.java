@@ -15,7 +15,12 @@ public class InsertAtCommand implements ServerCommandHandler {
         }
 
         try {
-            int index = request.getIndex() == null ? -1 : request.getIndex();
+            int index;
+            if (request.getIndex() == null) {
+                index = -1;
+            } else {
+                index = request.getIndex();
+            }
             boolean inserted = service.insertAt(index, city, request.getAuthenticatedUserId(), request.getLogin());
             if (inserted) {
                 return CommandResponse.ok(MessageKeys.INSERT_OK);

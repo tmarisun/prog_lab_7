@@ -15,11 +15,12 @@ import org.example.client.fx.dialog.CitiesTableDialog;
 import org.example.client.fx.dialog.CityFormDialog;
 import org.example.client.fx.dialog.ExtraCommandsDialogs;
 import org.example.client.fx.i18n.I18n;
+import org.example.client.fx.i18n.LocaleListCell;
 import org.example.client.fx.i18n.SupportedLocale;
 import org.example.client.fx.util.CityListFingerprint;
 import org.example.client.fx.util.CityOwnership;
 import org.example.client.fx.util.FxMessages;
-import org.example.client.fx.util.FxTasks;
+import org.example.client.fx.util.BackgroundWorker;
 import org.example.client.service.CommandService;
 import org.example.data.City;
 import org.example.net.protocol.CommandResponse;
@@ -185,20 +186,8 @@ public class MainView extends BorderPane {
     private ComboBox<SupportedLocale> createLanguageBox() {
         ComboBox<SupportedLocale> box = new ComboBox<>();
         box.getItems().addAll(SupportedLocale.values());
-        box.setCellFactory(cb -> new ListCell<>() {
-            @Override
-            protected void updateItem(SupportedLocale item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.getNativeDisplayName());
-            }
-        });
-        box.setButtonCell(new ListCell<>() {
-            @Override
-            protected void updateItem(SupportedLocale item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.getNativeDisplayName());
-            }
-        });
+        box.setCellFactory(cb -> new LocaleListCell());
+        box.setButtonCell(new LocaleListCell());
         box.getSelectionModel().select(SupportedLocale.RU);
         box.setOnAction(e -> {
             SupportedLocale sel = box.getSelectionModel().getSelectedItem();
@@ -255,7 +244,7 @@ public class MainView extends BorderPane {
     private void loadCitiesThenShowTable() {
         setStatus(I18n.get("status.connecting"));
         showButton.setDisable(true);
-        FxTasks.runAsync(
+        BackgroundWorker.run(
                 commandService::show,
                 response -> {
                     showButton.setDisable(false);
@@ -281,7 +270,7 @@ public class MainView extends BorderPane {
     }
 
     private void reloadFromServerQuiet() {
-        FxTasks.runAsync(
+        BackgroundWorker.run(
                 commandService::show,
                 response -> {
                     if (response.isSuccess()) {
@@ -319,14 +308,14 @@ public class MainView extends BorderPane {
         }
     }
 
+    /** Диалог → команда ADD на сервер → добавить город в masterList и на canvas. */
     private void onAdd() {
-        var cityOpt = CityFormDialog.showAddDialog();
-        if (cityOpt.isEmpty()) {
+        City toAdd = CityFormDialog.showAddDialog();
+        if (toAdd == null) {
             return;
         }
         setStatus(I18n.get("status.connecting"));
-        City toAdd = cityOpt.get();
-        FxTasks.runAsync(
+        BackgroundWorker.run(
                 () -> commandService.add(toAdd),
                 response -> handleAddResponse(response, toAdd),
                 err -> setStatus(FxMessages.fromError(err))
@@ -338,14 +327,13 @@ public class MainView extends BorderPane {
             setStatus(I18n.get("error.noSelection"));
             return;
         }
-        var updatedOpt = CityFormDialog.showEditDialog(selectedOnCanvas, commandService.getLogin());
-        if (updatedOpt.isEmpty()) {
+        City updated = CityFormDialog.showEditDialog(selectedOnCanvas, commandService.getLogin());
+        if (updated == null) {
             return;
         }
-        City updated = updatedOpt.get();
         long id = selectedOnCanvas.getId();
         setStatus(I18n.get("status.connecting"));
-        FxTasks.runAsync(
+        BackgroundWorker.run(
                 () -> commandService.update(id, updated),
                 response -> handleUpdateResponse(response, updated),
                 err -> setStatus(FxMessages.fromError(err))
@@ -368,7 +356,7 @@ public class MainView extends BorderPane {
             return;
         }
         setStatus(I18n.get("status.connecting"));
-        FxTasks.runAsync(
+        BackgroundWorker.run(
                 () -> commandService.removeById(selected.getId()),
                 response -> handleRemoveResponse(response, selected.getId()),
                 err -> setStatus(FxMessages.fromError(err))
@@ -389,7 +377,12 @@ public class MainView extends BorderPane {
             setStatus(FxMessages.fromResponse(response));
             return;
         }
-        City added = response.getCities().isEmpty() ? submitted : response.getCities().get(0);
+        City added;
+        if (response.getCities().isEmpty()) {
+            added = submitted;
+        } else {
+            added = response.getCities().get(0);
+        }
         masterList.add(added);
         lastFingerprint = CityListFingerprint.of(masterList);
         selectedOnCanvas = added;
@@ -443,7 +436,7 @@ public class MainView extends BorderPane {
     }
 
     private void pollOnce() {
-        FxTasks.runAsync(
+        BackgroundWorker.run(
                 commandService::show,
                 response -> {
                     if (!response.isSuccess()) {

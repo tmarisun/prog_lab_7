@@ -38,7 +38,12 @@ public final class DatabaseCreator {
                 System.getenv("PGPASSWORD"),
                 AppConfig.get(dotenv, "PG_PASSWORD", ""));
 
-        String password = (rawPassword == null || rawPassword.isBlank()) ? null : rawPassword;
+        String password;
+        if (rawPassword == null || rawPassword.isBlank()) {
+            password = null;
+        } else {
+            password = rawPassword;
+        }
 
         String adminUrl = "jdbc:postgresql://" + host + ":" + port + "/postgres";
 

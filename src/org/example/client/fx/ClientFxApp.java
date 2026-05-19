@@ -9,6 +9,9 @@ import org.example.client.service.CommandService;
 
 /**
  * Точка входа JavaFX-клиента. Запуск: {@code ./gradlew runFxClient}
+ * <p>
+ * Сначала экран входа ({@link LoginView}), затем главное окно ({@link MainView}).
+ * С сервером общается только {@link org.example.client.service.CommandService}.
  */
 public class ClientFxApp extends Application {
 

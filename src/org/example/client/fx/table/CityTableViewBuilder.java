@@ -52,28 +52,71 @@ public final class CityTableViewBuilder {
     }
 
     private static String formatCell(CityTableColumn def, City city) {
-        return switch (def) {
-            case ID -> city.getId() != null ? String.valueOf(city.getId()) : "";
-            case NAME -> nullToEmpty(city.getName());
-            case COORD_X -> city.getCoordinates() != null ? I18n.formatNumber(city.getCoordinates().getX()) : "";
-            case COORD_Y -> city.getCoordinates() != null ? I18n.formatNumber(city.getCoordinates().getY()) : "";
-            case CREATION_DATE -> I18n.formatDate(city.getCreationDate());
-            case AREA -> I18n.formatNumber(city.getArea());
-            case POPULATION -> I18n.formatNumber(city.getPopulation());
-            case METERS -> String.valueOf(city.getMetersAboveSeaLevel());
-            case CLIMATE -> enumLabel(city.getClimate(), "climate.");
-            case GOVERNMENT -> enumLabel(city.getGovernment(), "government.");
-            case STANDARD_OF_LIVING -> enumLabel(city.getStandardOfLiving(), "standardOfLiving.");
-            case GOVERNOR -> city.getGovernor() != null ? I18n.formatDate(city.getGovernor().birthday()) : "";
-            case OWNER -> nullToEmpty(city.getOwnerLogin());
-        };
+        if (def == CityTableColumn.ID) {
+            if (city.getId() != null) {
+                return String.valueOf(city.getId());
+            }
+            return "";
+        }
+        if (def == CityTableColumn.NAME) {
+            return nullToEmpty(city.getName());
+        }
+        if (def == CityTableColumn.COORD_X) {
+            if (city.getCoordinates() != null) {
+                return I18n.formatNumber(city.getCoordinates().getX());
+            }
+            return "";
+        }
+        if (def == CityTableColumn.COORD_Y) {
+            if (city.getCoordinates() != null) {
+                return I18n.formatNumber(city.getCoordinates().getY());
+            }
+            return "";
+        }
+        if (def == CityTableColumn.CREATION_DATE) {
+            return I18n.formatDate(city.getCreationDate());
+        }
+        if (def == CityTableColumn.AREA) {
+            return I18n.formatNumber(city.getArea());
+        }
+        if (def == CityTableColumn.POPULATION) {
+            return I18n.formatNumber(city.getPopulation());
+        }
+        if (def == CityTableColumn.METERS) {
+            return String.valueOf(city.getMetersAboveSeaLevel());
+        }
+        if (def == CityTableColumn.CLIMATE) {
+            return enumLabel(city.getClimate(), "climate.");
+        }
+        if (def == CityTableColumn.GOVERNMENT) {
+            return enumLabel(city.getGovernment(), "government.");
+        }
+        if (def == CityTableColumn.STANDARD_OF_LIVING) {
+            return enumLabel(city.getStandardOfLiving(), "standardOfLiving.");
+        }
+        if (def == CityTableColumn.GOVERNOR) {
+            if (city.getGovernor() != null) {
+                return I18n.formatDate(city.getGovernor().birthday());
+            }
+            return "";
+        }
+        if (def == CityTableColumn.OWNER) {
+            return nullToEmpty(city.getOwnerLogin());
+        }
+        return "";
     }
 
     private static String enumLabel(Enum<?> value, String prefix) {
-        return value == null ? "" : I18n.get(prefix + value.name());
+        if (value == null) {
+            return "";
+        }
+        return I18n.get(prefix + value.name());
     }
 
     private static String nullToEmpty(String s) {
-        return s == null ? "" : s;
+        if (s == null) {
+            return "";
+        }
+        return s;
     }
 }

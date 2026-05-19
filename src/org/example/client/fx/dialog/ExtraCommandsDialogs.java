@@ -34,7 +34,7 @@ public final class ExtraCommandsDialogs {
         if (answer.isEmpty() || answer.get() != ButtonType.YES) {
             return;
         }
-        org.example.client.fx.util.FxTasks.runAsync(
+        org.example.client.fx.util.BackgroundWorker.run(
                 commands::clear,
                 response -> {
                     status.accept(FxMessages.fromResponse(response));
@@ -56,7 +56,12 @@ public final class ExtraCommandsDialogs {
         VBox boxPane = new VBox(8, new Label(I18n.get("dialog.countLess.prompt")), box);
         boxPane.setPadding(new Insets(10));
         dialog.getDialogPane().setContent(boxPane);
-        dialog.setResultConverter(btn -> btn == ButtonType.OK ? box.getValue() : null);
+        dialog.setResultConverter(btn -> {
+            if (btn == ButtonType.OK) {
+                return box.getValue();
+            }
+            return null;
+        });
         Optional<StandardOfLiving> chosen = dialog.showAndWait().flatMap(Optional::ofNullable);
         if (chosen.isEmpty()) {
             return;
@@ -87,12 +92,12 @@ public final class ExtraCommandsDialogs {
     }
 
     public static void runAddIfMax(CommandService commands, Consumer<String> status, Runnable onChanged) {
-        var cityOpt = CityFormDialog.showAddDialog();
-        if (cityOpt.isEmpty()) {
+        City city = CityFormDialog.showAddDialog();
+        if (city == null) {
             return;
         }
-        org.example.client.fx.util.FxTasks.runAsync(
-                () -> commands.addIfMax(cityOpt.get()),
+        org.example.client.fx.util.BackgroundWorker.run(
+                () -> commands.addIfMax(city),
                 response -> {
                     status.accept(FxMessages.fromResponse(response));
                     if (response.isSuccess() && onChanged != null) {
@@ -118,12 +123,12 @@ public final class ExtraCommandsDialogs {
             status.accept(I18n.get("error.invalidIndex"));
             return;
         }
-        var cityOpt = CityFormDialog.showAddDialog();
-        if (cityOpt.isEmpty()) {
+        City city = CityFormDialog.showAddDialog();
+        if (city == null) {
             return;
         }
-        org.example.client.fx.util.FxTasks.runAsync(
-                () -> commands.insertAt(cityOpt.get(), index),
+        org.example.client.fx.util.BackgroundWorker.run(
+                () -> commands.insertAt(city, index),
                 response -> {
                     status.accept(FxMessages.fromResponse(response));
                     if (response.isSuccess() && onChanged != null) {
@@ -145,7 +150,7 @@ public final class ExtraCommandsDialogs {
             java.util.function.Supplier<CommandResponse> call,
             java.util.function.Consumer<CommandResponse> onResponse
     ) {
-        org.example.client.fx.util.FxTasks.runAsync(
+        org.example.client.fx.util.BackgroundWorker.run(
                 call::get,
                 onResponse,
                 err -> onResponse.accept(CommandResponse.fail(err.getMessage()))

@@ -139,12 +139,13 @@ public class CityReader {
         System.out.print("Select the climate (Enter to skip): ");
         String climateInput = scanner.nextLine();
 
-        return InputValidator.validateEnum(
-                climateInput.isEmpty() ? null : climateInput,
-                Climate.class,
-                "climate",
-                false
-        );
+        String climateArg;
+        if (climateInput.isEmpty()) {
+            climateArg = null;
+        } else {
+            climateArg = climateInput;
+        }
+        return InputValidator.validateEnum(climateArg, Climate.class, "climate", false);
     }
 
     private static Government readEnumGovernment(Scanner scanner) throws IllegalArgumentException {
@@ -165,12 +166,13 @@ public class CityReader {
         System.out.print("Select the standard of living (Enter to skip): ");
         String input = scanner.nextLine();
 
-        return InputValidator.validateEnum(
-                input.isEmpty() ? null : input,
-                StandardOfLiving.class,
-                "StandardOfLiving",
-                false
-        );
+        String solArg;
+        if (input.isEmpty()) {
+            solArg = null;
+        } else {
+            solArg = input;
+        }
+        return InputValidator.validateEnum(solArg, StandardOfLiving.class, "StandardOfLiving", false);
 
     }
 

@@ -9,7 +9,6 @@ public class InsertAtCommand implements ClientCommand {
     public void execute(String arg, CommandRequest request) throws Exception {
         request.setType(CommandType.INSERT_AT);
 
-        // In append-only mode index is ignored; parse it only for backward compatibility.
         if (arg != null && !arg.trim().isEmpty()) {
             String[] parts = arg.trim().split("\\s+");
             if (parts.length > 1) {

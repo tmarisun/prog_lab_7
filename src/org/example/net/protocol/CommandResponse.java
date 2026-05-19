@@ -58,7 +58,12 @@ public class CommandResponse implements Serializable {
         }
         StringBuilder sb = new StringBuilder(messageKey);
         for (Object arg : args) {
-            sb.append('|').append(arg == null ? "" : arg);
+            sb.append('|');
+            if (arg == null) {
+                sb.append("");
+            } else {
+                sb.append(arg);
+            }
         }
         return sb.toString();
     }
